@@ -1,4 +1,4 @@
-import { v2 as cloudinary } from 'cloudinary';
+import cloudinary from 'cloudinary';
 import { upload, handleUploadError } from '../middlewares/multer.js';
 import dotenv from 'dotenv';
 
