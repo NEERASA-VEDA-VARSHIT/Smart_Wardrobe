@@ -1,7 +1,11 @@
 import express from "express";
 import dotenv from "dotenv";
 dotenv.config();
+import { validateEnvironment } from "./utils/envValidation.js";
 import { connectDB } from "./config/db.js";
+
+// Validate environment variables before starting
+validateEnvironment();
 import authRouter from "./routes/auth.routes.js";
 import userRouter from "./routes/user.routes.js";
 import clothingItemRouter from "./routes/clothingItem.routes.js";
@@ -21,12 +25,16 @@ import cors from "cors";
 const app = express();
 const PORT = process.env.PORT || 8000;
 
-app.use(cors(
-    {
-        origin: 'http://localhost:5173',
-        credentials: true,
-    }
-));
+// CORS configuration for production
+const corsOptions = {
+    origin: process.env.NODE_ENV === 'production' 
+        ? [process.env.FRONTEND_URL, process.env.ALLOWED_ORIGINS?.split(',')].flat().filter(Boolean)
+        : 'http://localhost:5173',
+    credentials: true,
+    optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(cookieParser());
 
