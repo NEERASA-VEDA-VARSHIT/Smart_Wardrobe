@@ -1,5 +1,5 @@
 // API Configuration
-export const API_BASE_URL = '/api';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 // Get authentication headers (cookie-based auth, no token needed)
 export const getAuthHeaders = () => ({
