@@ -1,0 +1,102 @@
+import express from "express";
+import dotenv from "dotenv";
+dotenv.config();
+import { connectDB } from "./config/db.js";
+import authRouter from "./routes/auth.routes.js";
+import userRouter from "./routes/user.routes.js";
+import clothingItemRouter from "./routes/clothingItem.routes.js";
+import collectionRouter from "./routes/collection.routes.js";
+import metadataRouter from "./routes/metadata.routes.js";
+import batchMetadataRouter from "./routes/batchMetadata.routes.js";
+import recommendationRouter from "./routes/recommendation.routes.js";
+import laundryRouter from "./routes/laundry.routes.js";
+import laundrySuggestionRouter from "./routes/laundrySuggestion.routes.js";
+import weatherRecommendationRouter from "./routes/weatherRecommendation.routes.js";
+import collaborativeSuggestionRouter from "./routes/collaborativeSuggestion.routes.js";
+import suggestionRouter from "./routes/suggestion.routes.js";
+import performanceMonitor from "./middlewares/performanceMonitor.js";
+import cookieParser from "cookie-parser";
+import cors from "cors";
+
+const app = express();
+const PORT = process.env.PORT || 8000;
+
+app.use(cors(
+    {
+        origin: 'http://localhost:5173',
+        credentials: true,
+    }
+));
+app.use(express.json());
+app.use(cookieParser());
+
+// Add performance monitoring
+app.use(performanceMonitor);
+
+// Debug middleware to log all requests
+app.use((req, res, next) => {
+    console.log(`${req.method} ${req.path}`, req.body);
+    next();
+});
+
+// Auth routes
+app.use("/api/auth", authRouter);
+
+// User routes
+app.use("/api/users", userRouter);
+
+// Clothing Item routes
+app.use("/api/clothing-items", clothingItemRouter);
+
+// Collection routes
+app.use("/api/collections", collectionRouter);
+
+// Metadata routes
+app.use("/api/metadata", metadataRouter);
+
+// Batch metadata routes
+app.use("/api/batch-metadata", batchMetadataRouter);
+
+// Recommendation routes
+app.use("/api/recommendations", recommendationRouter);
+
+// Laundry routes
+app.use("/api/laundry", laundryRouter);
+
+// Laundry suggestion routes
+app.use("/api/laundry-suggestions", laundrySuggestionRouter);
+
+// Weather recommendation routes
+app.use("/api/weather-recommendations", weatherRecommendationRouter);
+
+// Collaborative suggestion routes
+app.use("/api/suggestions", collaborativeSuggestionRouter);
+
+// Outfit suggestion routes
+app.use("/api/outfit-suggestions", suggestionRouter);
+
+connectDB(process.env.MONGODB_URI);
+
+
+app.get("/", (req, res) => {
+    res.send("Hello, World!");
+});
+
+// Health check endpoint
+app.get("/api/health", (req, res) => {
+    res.json({ 
+        status: "ok", 
+        timestamp: new Date().toISOString(),
+        message: "Smart Wardrobe API is running"
+    });
+});
+
+// Error handling middleware
+app.use((error, req, res, next) => {
+    console.error("Unhandled error:", error);
+    res.status(500).json({ message: "Internal server error", error: error.message });
+});
+
+app.listen(PORT, () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
+});
