@@ -27,7 +27,15 @@ metadataRouter.post('/generate', metadataLimiter, uploadSingleImage('image'), pr
     const imageBuffer = Buffer.from(req.file.buffer || req.file.path);
     const mimeType = req.file.mimetype;
 
-    const result = await generateClothingMetadata(imageBuffer, mimeType);
+    // Add timeout wrapper for Vercel compatibility
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Request timeout')), 8000); // 8 second timeout
+    });
+
+    const result = await Promise.race([
+      generateClothingMetadata(imageBuffer, mimeType),
+      timeoutPromise
+    ]);
 
     if (!result.success) {
       // Clean up Cloudinary image if metadata generation failed
@@ -68,6 +76,17 @@ metadataRouter.post('/generate', metadataLimiter, uploadSingleImage('image'), pr
     });
   } catch (error) {
     console.error('Error in metadata generation route:', error);
+    
+    // Handle timeout specifically
+    if (error.message === 'Request timeout') {
+      return res.status(408).json({
+        success: false,
+        message: 'Metadata generation timed out. Please try again with a smaller image or use manual mode.',
+        error: 'Request timeout',
+        retryable: true,
+        fallback: 'Use manual mode to add clothing without AI metadata'
+      });
+    }
     
     // Clean up Cloudinary image if any error occurred
     if (req.body.publicId) {

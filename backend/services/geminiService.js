@@ -35,8 +35,8 @@ export const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-
  * @returns {Object} Generated metadata
  */
 export const generateClothingMetadata = async (imageBuffer, mimeType) => {
-  const maxRetries = 3;
-  const retryDelay = 2000; // 2 seconds
+  const maxRetries = 2; // Reduced retries for faster failure
+  const retryDelay = 1000; // 1 second delay
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
