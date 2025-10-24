@@ -72,8 +72,11 @@ function App() {
       }
     };
 
-    verifyAuth();
-  }, [user, isRehydrated, dispatch, isVerifyingAuth]);
+    // Only verify once when user is first loaded
+    if (user && isRehydrated && !isVerifyingAuth) {
+      verifyAuth();
+    }
+  }, [user, isRehydrated]); // Removed isVerifyingAuth from dependencies to prevent infinite loop
 
   // Fallback: if rehydration doesn't happen within 2 seconds, assume no persisted data
   useEffect(() => {
