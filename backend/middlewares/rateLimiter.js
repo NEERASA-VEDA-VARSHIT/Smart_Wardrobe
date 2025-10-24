@@ -24,6 +24,10 @@ export const metadataLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => {
+    // Use X-Forwarded-For header if available, otherwise use IP
+    return req.headers['x-forwarded-for']?.split(',')[0] || req.ip;
+  }
 });
 
 // Rate limiter for general API calls

@@ -11,10 +11,20 @@ export const geminiModel = genAI.getGenerativeModel({
   model: "gemini-2.5-flash-lite",
   generationConfig: {
     temperature: 0.1, // Lower temperature for more consistent results
-    maxOutputTokens: 500, // Further limit output for faster processing
-    topP: 0.8, // Reduce randomness
-    topK: 20, // Limit vocabulary
-  }
+    maxOutputTokens: 300, // Reduced for faster processing
+    topP: 0.7, // Reduce randomness
+    topK: 10, // Limit vocabulary
+  },
+  safetySettings: [
+    {
+      category: "HARM_CATEGORY_HARASSMENT",
+      threshold: "BLOCK_NONE"
+    },
+    {
+      category: "HARM_CATEGORY_HATE_SPEECH", 
+      threshold: "BLOCK_NONE"
+    }
+  ]
 });
 export const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
 

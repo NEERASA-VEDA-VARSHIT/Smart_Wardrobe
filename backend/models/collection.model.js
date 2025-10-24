@@ -36,7 +36,6 @@ const collectionSchema = new mongoose.Schema({
   }],
   shareLink: {
     type: String,
-    unique: true,
     sparse: true // Allows null values but ensures uniqueness when present
   },
   isPublic: {

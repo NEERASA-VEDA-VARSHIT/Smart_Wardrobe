@@ -3,6 +3,7 @@ import { generateClothingMetadata, generateClothingEmbedding } from '../services
 import { isAuth } from '../middlewares/isAuth.js';
 import { uploadSingleImage, processImageUpload } from '../middlewares/uploadImage.js';
 import { deleteImage } from '../config/cloudinary.js';
+import { metadataLimiter } from '../middlewares/rateLimiter.js';
 
 const metadataRouter = express.Router();
 
@@ -13,7 +14,7 @@ metadataRouter.use(isAuth);
  * POST /api/metadata/generate
  * Generate clothing metadata from image using Gemini Vision
  */
-metadataRouter.post('/generate', uploadSingleImage('image'), processImageUpload, async (req, res) => {
+metadataRouter.post('/generate', metadataLimiter, uploadSingleImage('image'), processImageUpload, async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
