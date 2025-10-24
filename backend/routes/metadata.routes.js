@@ -27,9 +27,9 @@ metadataRouter.post('/generate', metadataLimiter, uploadSingleImage('image'), pr
     const imageBuffer = Buffer.from(req.file.buffer || req.file.path);
     const mimeType = req.file.mimetype;
 
-    // Add timeout wrapper for Vercel compatibility
+    // Add timeout wrapper for Vercel compatibility (reduced to 5 seconds)
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Request timeout')), 8000); // 8 second timeout
+      setTimeout(() => reject(new Error('Request timeout')), 5000); // 5 second timeout
     });
 
     const result = await Promise.race([
@@ -84,7 +84,12 @@ metadataRouter.post('/generate', metadataLimiter, uploadSingleImage('image'), pr
         message: 'Metadata generation timed out. Please try again with a smaller image or use manual mode.',
         error: 'Request timeout',
         retryable: true,
-        fallback: 'Use manual mode to add clothing without AI metadata'
+        fallback: 'Use manual mode to add clothing without AI metadata',
+        manualMode: {
+          available: true,
+          message: 'You can add clothing items manually without AI metadata',
+          fields: ['name', 'category', 'color', 'brand', 'size', 'season', 'occasion']
+        }
       });
     }
     
@@ -99,6 +104,75 @@ metadataRouter.post('/generate', metadataLimiter, uploadSingleImage('image'), pr
       }
     }
     
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/metadata/manual
+ * Create clothing item with manual metadata (no AI)
+ */
+metadataRouter.post('/manual', async (req, res) => {
+  try {
+    const { 
+      name, 
+      category, 
+      color, 
+      brand, 
+      size, 
+      season, 
+      occasion, 
+      description,
+      imageUrl,
+      publicId,
+      fileName
+    } = req.body;
+
+    // Validate required fields
+    if (!name || !category) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name and category are required for manual clothing creation'
+      });
+    }
+
+    // Create manual metadata object
+    const manualMetadata = {
+      color: {
+        primary: color || 'unknown',
+        secondary: null
+      },
+      category: category,
+      subcategory: category, // Use category as subcategory for manual entries
+      fabric: 'unknown',
+      brand: brand || 'unknown',
+      size: size || 'unknown',
+      pattern: 'unknown',
+      season: season || 'all-season',
+      formality: 'casual',
+      occasion: occasion ? [occasion] : ['casual'],
+      tags: ['manual-entry'],
+      description: description || `Manual entry: ${name}`
+    };
+
+    res.status(200).json({
+      success: true,
+      data: {
+        metadata: manualMetadata,
+        imageUrl: imageUrl,
+        fileName: fileName,
+        publicId: publicId,
+        metadataSource: 'manual'
+      },
+      message: 'Manual metadata created successfully'
+    });
+
+  } catch (error) {
+    console.error('Error in manual metadata creation:', error);
     res.status(500).json({
       success: false,
       message: 'Internal server error',

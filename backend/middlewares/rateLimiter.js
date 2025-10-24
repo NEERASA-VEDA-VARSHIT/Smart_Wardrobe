@@ -26,7 +26,21 @@ export const metadataLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     // Use X-Forwarded-For header if available, otherwise use IP
-    return req.headers['x-forwarded-for']?.split(',')[0] || req.ip;
+    const forwarded = req.headers['x-forwarded-for'];
+    const realIp = req.headers['x-real-ip'];
+    const ip = req.ip || req.connection?.remoteAddress;
+    
+    if (forwarded) {
+      return forwarded.split(',')[0].trim();
+    }
+    if (realIp) {
+      return realIp;
+    }
+    return ip || 'unknown';
+  },
+  skip: (req) => {
+    // Skip rate limiting for health checks
+    return req.path === '/api/health' || req.path === '/api/test-cloudinary';
   }
 });
 

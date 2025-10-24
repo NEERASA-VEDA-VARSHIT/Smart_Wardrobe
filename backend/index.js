@@ -27,18 +27,31 @@ const PORT = process.env.PORT || 8000;
 
 // CORS configuration for production
 const corsOptions = {
-    origin: process.env.NODE_ENV === 'production' 
-        ? [
-            'https://smart-wardrobe-five.vercel.app',
-            'https://smart-wardrobe-frontend.vercel.app',
-            process.env.FRONTEND_URL, 
-            process.env.ALLOWED_ORIGINS?.split(',')
-          ].flat().filter(Boolean)
-        : 'http://localhost:5173',
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        
+        const allowedOrigins = process.env.NODE_ENV === 'production' 
+            ? [
+                'https://smart-wardrobe-five.vercel.app',
+                'https://smart-wardrobe-frontend.vercel.app',
+                'https://smart-wardrobe-eta.vercel.app',
+                process.env.FRONTEND_URL, 
+                process.env.ALLOWED_ORIGINS?.split(',')
+              ].flat().filter(Boolean)
+            : ['http://localhost:5173', 'http://localhost:3000'];
+        
+        if (allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            console.log('CORS blocked origin:', origin);
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true,
     optionsSuccessStatus: 200,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'Cache-Control', 'Pragma']
 };
 
 // Apply CORS to all routes
@@ -46,13 +59,30 @@ app.use(cors(corsOptions));
 
 // Additional CORS headers for all responses
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  const origin = req.headers.origin;
+  const allowedOrigins = process.env.NODE_ENV === 'production' 
+      ? [
+          'https://smart-wardrobe-five.vercel.app',
+          'https://smart-wardrobe-frontend.vercel.app',
+          'https://smart-wardrobe-eta.vercel.app',
+          process.env.FRONTEND_URL, 
+          process.env.ALLOWED_ORIGINS?.split(',')
+        ].flat().filter(Boolean)
+      : ['http://localhost:5173', 'http://localhost:3000'];
+  
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else {
+    res.header('Access-Control-Allow-Origin', '*');
+  }
+  
   res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma');
+  res.header('Access-Control-Max-Age', '86400'); // 24 hours
   
   if (req.method === 'OPTIONS') {
-    res.sendStatus(200);
+    res.status(200).end();
   } else {
     next();
   }
