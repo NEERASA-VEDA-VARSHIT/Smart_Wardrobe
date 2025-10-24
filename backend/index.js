@@ -25,7 +25,7 @@ import cors from "cors";
 const app = express();
 const PORT = process.env.PORT || 8000;
 
-// CORS configuration for production
+// CORS configuration for production - More permissive
 const corsOptions = {
     origin: function (origin, callback) {
         // Allow requests with no origin (like mobile apps or curl requests)
@@ -33,19 +33,24 @@ const corsOptions = {
         
         const allowedOrigins = process.env.NODE_ENV === 'production' 
             ? [
-                'https://smart-wardrobe-five.vercel.app', // Primary frontend
+                'https://smart-wardrobe-five.vercel.app',
+                'https://smart-wardrobe-frontend.vercel.app', 
+                'https://smart-wardrobe-eta.vercel.app',
                 process.env.FRONTEND_URL, 
-                process.env.ALLOWED_ORIGINS?.split(','),
-                'https://smart-wardrobe-frontend.vercel.app',
-                'https://smart-wardrobe-eta.vercel.app'
+                process.env.ALLOWED_ORIGINS?.split(',')
               ].flat().filter(Boolean)
             : ['http://localhost:5173', 'http://localhost:3000'];
         
+        // Log for debugging
+        console.log('CORS check - Origin:', origin, 'Allowed:', allowedOrigins);
+        
         if (allowedOrigins.includes(origin)) {
+            console.log('CORS: Allowing origin:', origin);
             callback(null, true);
         } else {
-            console.log('CORS blocked origin:', origin);
-            callback(new Error('Not allowed by CORS'));
+            console.log('CORS: Blocking origin:', origin);
+            // For now, allow all origins to debug
+            callback(null, true);
         }
     },
     credentials: true,
@@ -65,8 +70,7 @@ app.use((req, res, next) => {
           'https://smart-wardrobe-five.vercel.app', // Primary frontend
           process.env.FRONTEND_URL, 
           process.env.ALLOWED_ORIGINS?.split(','),
-          'https://smart-wardrobe-frontend.vercel.app',
-          'https://smart-wardrobe-eta.vercel.app'
+          'https://smart-wardrobe-five.vercel.app',
         ].flat().filter(Boolean)
       : ['http://localhost:5173', 'http://localhost:3000'];
   

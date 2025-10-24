@@ -27,9 +27,9 @@ metadataRouter.post('/generate', metadataLimiter, uploadSingleImage('image'), pr
     const imageBuffer = Buffer.from(req.file.buffer || req.file.path);
     const mimeType = req.file.mimetype;
 
-    // Add timeout wrapper for Vercel compatibility (reduced to 5 seconds)
+    // Add timeout wrapper for Vercel compatibility (reduced to 10 seconds)
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Request timeout')), 5000); // 5 second timeout
+      setTimeout(() => reject(new Error('Request timeout')), 10000); // 10 second timeout
     });
 
     const result = await Promise.race([
@@ -89,6 +89,10 @@ metadataRouter.post('/generate', metadataLimiter, uploadSingleImage('image'), pr
           available: true,
           message: 'You can add clothing items manually without AI metadata',
           fields: ['name', 'category', 'color', 'brand', 'size', 'season', 'occasion']
+        },
+        emergencyFallback: {
+          endpoint: '/api/metadata/manual',
+          message: 'Use this endpoint to create clothing without AI metadata'
         }
       });
     }

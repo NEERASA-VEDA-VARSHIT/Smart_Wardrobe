@@ -30,12 +30,24 @@ export const metadataLimiter = rateLimit({
     const realIp = req.headers['x-real-ip'];
     const ip = req.ip || req.connection?.remoteAddress;
     
+    // Log for debugging
+    console.log('Rate limit key generation:', {
+      forwarded,
+      realIp,
+      ip,
+      headers: req.headers
+    });
+    
     if (forwarded) {
-      return forwarded.split(',')[0].trim();
+      const clientIp = forwarded.split(',')[0].trim();
+      console.log('Using forwarded IP:', clientIp);
+      return clientIp;
     }
     if (realIp) {
+      console.log('Using real IP:', realIp);
       return realIp;
     }
+    console.log('Using default IP:', ip);
     return ip || 'unknown';
   },
   skip: (req) => {

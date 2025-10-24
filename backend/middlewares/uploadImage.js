@@ -183,11 +183,11 @@ export const processImageUpload = async (req, res, next) => {
           }
         );
         
-        // Add timeout handling
+        // Add timeout handling - much shorter timeout
         const timeoutId = setTimeout(() => {
           console.error(`Cloudinary upload timeout (attempt ${attempt})`);
           reject(new Error('Cloudinary upload timeout'));
-        }, 30000); // 30 second timeout
+        }, 15000); // 15 second timeout
         
         uploadStream.on('error', (error) => {
           clearTimeout(timeoutId);
