@@ -31,7 +31,7 @@ export const reduxIntegratedAPI = {
       
       try {
         const response = await clothingAPI.getClothingItems(userId);
-        store.dispatch(setClothingItems(response.data));
+        store.dispatch(setClothingItems(response.data.data || response.data));
         
         // Track API usage
         store.dispatch(trackAPICall({
@@ -133,7 +133,7 @@ export const reduxIntegratedAPI = {
       
       try {
         const response = await collectionsAPI.getCollections();
-        store.dispatch(setCollections(response.data));
+        store.dispatch(setCollections(response.data.data || response.data));
         
         return response;
       } catch (error) {
@@ -222,7 +222,7 @@ export const reduxIntegratedAPI = {
       
       try {
         const response = await laundryAPI.getLaundryStats(userId);
-        store.dispatch(setLaundry(response.data));
+        store.dispatch(setLaundry(response.data.data || response.data));
         
         return response;
       } catch (error) {
