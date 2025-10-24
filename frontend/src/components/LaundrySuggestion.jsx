@@ -18,7 +18,7 @@ const LaundrySuggestion = ({ onItemMovedToLaundry, onDismiss }) => {
 
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:8000/api/laundry-suggestions/${user._id}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api')}/laundry-suggestions/${user._id}`, {
         credentials: 'include'
       });
 
@@ -44,7 +44,7 @@ const LaundrySuggestion = ({ onItemMovedToLaundry, onDismiss }) => {
   // Move item to laundry
   const moveToLaundry = async (clothingId, itemType) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/laundry/add/${clothingId}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api')}/laundry/add/${clothingId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -57,7 +57,7 @@ const LaundrySuggestion = ({ onItemMovedToLaundry, onDismiss }) => {
       
       if (data.success) {
         // Learn from user decision
-        await fetch('http://localhost:8000/api/laundry-suggestions/learn', {
+        await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api')}/laundry-suggestions/learn`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -91,7 +91,7 @@ const LaundrySuggestion = ({ onItemMovedToLaundry, onDismiss }) => {
   const dismissSuggestion = async (clothingId, itemType) => {
     try {
       // Learn from user decision
-      await fetch('http://localhost:8000/api/laundry-suggestions/learn', {
+      await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api')}/laundry-suggestions/learn`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -115,7 +115,7 @@ const LaundrySuggestion = ({ onItemMovedToLaundry, onDismiss }) => {
   // Update wash preference
   const updateWashPreference = async (clothingId, preference) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/laundry-suggestions/wash-preference/${clothingId}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api')}/laundry-suggestions/wash-preference/${clothingId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

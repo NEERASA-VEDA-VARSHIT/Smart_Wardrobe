@@ -23,7 +23,7 @@ const Laundry = () => {
 
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:8000/api/laundry/${user._id}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api')}/laundry/${user._id}`, {
         credentials: 'include'
       });
 
@@ -51,7 +51,7 @@ const Laundry = () => {
   // Mark item as washed
   const markAsWashed = async (clothingId) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/laundry/return/${clothingId}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api')}/laundry/return/${clothingId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -77,7 +77,7 @@ const Laundry = () => {
   // Remove item from laundry
   const removeFromLaundry = async (clothingId) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/laundry/remove/${clothingId}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api')}/laundry/remove/${clothingId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',

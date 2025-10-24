@@ -102,6 +102,25 @@ export const getCurrentUser = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
+    
+    // If user doesn't have a username, generate one
+    if (!user.username) {
+      let username = user.email.split('@')[0].toLowerCase().replace(/[^a-zA-Z0-9_]/g, '');
+      
+      // Check if username already exists, if so, add a number
+      let counter = 1;
+      let originalUsername = username;
+      while (await User.findOne({ username })) {
+        username = `${originalUsername}${counter}`;
+        counter++;
+      }
+      
+      // Update user with generated username
+      user.username = username;
+      await user.save();
+      console.log(`Generated username for user ${user.email}: ${username}`);
+    }
+    
     res.status(200).json(user);
   } catch (error) {
     console.error("Get current user error:", error);
