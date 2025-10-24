@@ -47,7 +47,7 @@ const WeatherRecommendation = ({ onLocationUpdate }) => {
       setError(null);
 
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api')}/weather-recommendations/${user._id}?lat=${lat}&lon=${lon}&includeForecast=true`,
+        `${import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : 'https://smart-wardrobe-backend.vercel.app/api')}/weather-recommendations/${user._id}?lat=${lat}&lon=${lon}&includeForecast=true`,
         {
           credentials: 'include'
         }

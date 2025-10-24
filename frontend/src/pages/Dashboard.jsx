@@ -36,13 +36,6 @@ const Dashboard = () => {
       console.log('Fetching dashboard data for user:', user._id);
 
       try {
-        // Check if backend is available
-        const healthResponse = await fetch('/api/health');
-        if (!healthResponse.ok) {
-          console.warn('Backend not available, using fallback data');
-          return;
-        }
-
         // Get user's location or use default (New York)
         let lat = 40.7128, lon = -74.0060; // Default to New York
         

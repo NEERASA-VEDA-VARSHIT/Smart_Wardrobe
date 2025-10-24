@@ -32,7 +32,7 @@ export default function RecommendationEngine() {
     setResult(null);
     
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api')}/recommendations/outfit/${user._id}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : 'https://smart-wardrobe-backend.vercel.app/api')}/recommendations/outfit/${user._id}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -73,7 +73,7 @@ export default function RecommendationEngine() {
 
   const acceptSuggestion = async (recommendationId) => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api')}/recommendations/${recommendationId}/worn`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : 'https://smart-wardrobe-backend.vercel.app/api')}/recommendations/${recommendationId}/worn`, {
         method: "POST",
         credentials: 'include'
       });
@@ -92,7 +92,7 @@ export default function RecommendationEngine() {
   const provideFeedback = async (recommendationId, rating, comment) => {
     setIsSubmittingFeedback(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api')}/recommendations/${recommendationId}/feedback`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : 'https://smart-wardrobe-backend.vercel.app/api')}/recommendations/${recommendationId}/feedback`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
