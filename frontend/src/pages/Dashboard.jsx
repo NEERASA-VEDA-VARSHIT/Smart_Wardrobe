@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useUser, useData, useUI, useGeminiAPI } from '../hooks';
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedCard from '../components/AnimatedCard';
@@ -24,16 +24,25 @@ const Dashboard = () => {
   
   // Local state for UI-specific data
   const [todaysOutfit, setTodaysOutfit] = useState(null);
+  const hasFetchedDataRef = useRef(false);
+
+  // Reset fetch flag when user changes (e.g., logout)
+  useEffect(() => {
+    if (!user) {
+      hasFetchedDataRef.current = false;
+    }
+  }, [user]);
 
   // Fetch dashboard data using Redux-integrated API
   useEffect(() => {
     const fetchDashboardData = async () => {
-      if (!user?._id) {
-        console.log('No user ID available');
+      if (!user?._id || hasFetchedDataRef.current) {
+        console.log('No user ID available or data already fetched');
         return;
       }
 
       console.log('Fetching dashboard data for user:', user._id);
+      hasFetchedDataRef.current = true;
 
       try {
         // Get user's location or use default (New York)
