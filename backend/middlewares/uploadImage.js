@@ -146,8 +146,11 @@ export const processImageUpload = async (req, res, next) => {
       const compressedBuffer = await compressImage(req.file.buffer, compressionSettings);
       
       // Upload to Cloudinary with timeout
+      console.log(`Starting Cloudinary upload attempt ${attempt}...`);
+      console.log(`Image size: ${compressedBuffer.length} bytes`);
+      
       const result = await new Promise((resolve, reject) => {
-        cloudinary.uploader.upload_stream(
+        const uploadStream = cloudinary.uploader.upload_stream(
           {
             folder: 'smart-wardrobe',
             public_id: `clothing-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`,
@@ -163,12 +166,40 @@ export const processImageUpload = async (req, res, next) => {
           (error, result) => {
             if (error) {
               console.error(`Cloudinary upload error (attempt ${attempt}):`, error);
+              console.error('Error details:', {
+                message: error.message,
+                http_code: error.http_code,
+                name: error.name
+              });
               reject(error);
             } else {
+              console.log(`✅ Cloudinary upload successful (attempt ${attempt}):`, {
+                public_id: result.public_id,
+                secure_url: result.secure_url,
+                bytes: result.bytes
+              });
               resolve(result);
             }
           }
-        ).end(compressedBuffer);
+        );
+        
+        // Add timeout handling
+        const timeoutId = setTimeout(() => {
+          console.error(`Cloudinary upload timeout (attempt ${attempt})`);
+          reject(new Error('Cloudinary upload timeout'));
+        }, 30000); // 30 second timeout
+        
+        uploadStream.on('error', (error) => {
+          clearTimeout(timeoutId);
+          console.error(`Cloudinary stream error (attempt ${attempt}):`, error);
+          reject(error);
+        });
+        
+        uploadStream.on('end', () => {
+          clearTimeout(timeoutId);
+        });
+        
+        uploadStream.end(compressedBuffer);
       });
 
       // Add Cloudinary data to request body

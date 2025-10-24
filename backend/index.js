@@ -123,6 +123,26 @@ app.get("/api/health", (req, res) => {
     });
 });
 
+// Cloudinary connectivity test endpoint
+app.get("/api/test-cloudinary", async (req, res) => {
+    try {
+        const { cloudinary } = await import('./config/cloudinary.js');
+        const result = await cloudinary.api.ping();
+        res.json({
+            status: "ok",
+            cloudinary: "connected",
+            result: result
+        });
+    } catch (error) {
+        console.error('Cloudinary test failed:', error);
+        res.status(500).json({
+            status: "error",
+            cloudinary: "failed",
+            error: error.message
+        });
+    }
+});
+
 // Error handling middleware
 app.use((error, req, res, next) => {
     console.error("Unhandled error:", error);
