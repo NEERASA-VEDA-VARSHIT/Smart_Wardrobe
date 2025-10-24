@@ -24,8 +24,9 @@ const upload = multer({
 const batchUpload = multer({
   storage: storage,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
-    files: 20 // Allow up to 20 files
+    fileSize: 5 * 1024 * 1024, // 5MB limit per file (reduced for batch)
+    files: 10, // Allow up to 10 files (reduced for better performance)
+    fieldSize: 50 * 1024 * 1024 // 50MB total field size
   },
   fileFilter: (req, file, cb) => {
     // Check file type
@@ -47,13 +48,13 @@ const handleUploadError = (error, req, res, next) => {
     if (error.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({
         success: false,
-        message: 'File too large. Maximum size is 10MB.'
+        message: 'File too large. Maximum size is 5MB per file for batch uploads.'
       });
     }
     if (error.code === 'LIMIT_FILE_COUNT') {
       return res.status(400).json({
         success: false,
-        message: 'Too many files. Maximum is 20 files.'
+        message: 'Too many files. Maximum is 10 files for batch uploads.'
       });
     }
     if (error.code === 'LIMIT_UNEXPECTED_FILE') {

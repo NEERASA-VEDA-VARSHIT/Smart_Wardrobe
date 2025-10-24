@@ -28,14 +28,22 @@ const PORT = process.env.PORT || 8000;
 // CORS configuration for production
 const corsOptions = {
     origin: process.env.NODE_ENV === 'production' 
-        ? [process.env.FRONTEND_URL, process.env.ALLOWED_ORIGINS?.split(',')].flat().filter(Boolean)
+        ? [
+            'https://smart-wardrobe-five.vercel.app',
+            'https://smart-wardrobe-frontend.vercel.app',
+            process.env.FRONTEND_URL, 
+            process.env.ALLOWED_ORIGINS?.split(',')
+          ].flat().filter(Boolean)
         : 'http://localhost:5173',
     credentials: true,
-    optionsSuccessStatus: 200
+    optionsSuccessStatus: 200,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 };
 
 app.use(cors(corsOptions));
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cookieParser());
 
 // Add performance monitoring
