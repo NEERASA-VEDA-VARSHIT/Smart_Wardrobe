@@ -177,6 +177,38 @@ app.get("/api/test-cloudinary", async (req, res) => {
     }
 });
 
+// Simple Cloudinary upload test endpoint
+app.post("/api/test-cloudinary-upload", async (req, res) => {
+    try {
+        const { cloudinary } = await import('./config/cloudinary.js');
+        
+        // Test with a simple base64 image
+        const testImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+        
+        const result = await cloudinary.uploader.upload(testImage, {
+            folder: 'test',
+            public_id: `test-${Date.now()}`,
+            timeout: 10000
+        });
+        
+        res.json({
+            status: "ok",
+            upload: "successful",
+            result: {
+                public_id: result.public_id,
+                secure_url: result.secure_url
+            }
+        });
+    } catch (error) {
+        console.error('Cloudinary upload test failed:', error);
+        res.status(500).json({
+            status: "error",
+            upload: "failed",
+            error: error.message
+        });
+    }
+});
+
 // Error handling middleware
 app.use((error, req, res, next) => {
     console.error("Unhandled error:", error);

@@ -158,8 +158,21 @@ export const processImageUpload = async (req, res, next) => {
         throw new Error('Cloudinary service unavailable');
       }
       
+      // Use direct upload instead of stream to avoid hanging
+      console.log('Using direct Cloudinary upload...');
       const result = await new Promise((resolve, reject) => {
-        const uploadStream = cloudinary.uploader.upload_stream(
+        // Add timeout handling
+        const timeoutId = setTimeout(() => {
+          console.error(`Cloudinary upload timeout (attempt ${attempt})`);
+          reject(new Error('Cloudinary upload timeout'));
+        }, 8000); // 8 second timeout
+        
+        // Use direct upload with base64
+        const base64String = compressedBuffer.toString('base64');
+        const dataUri = `data:${req.file.mimetype};base64,${base64String}`;
+        
+        cloudinary.uploader.upload(
+          dataUri,
           {
             folder: 'smart-wardrobe',
             public_id: `clothing-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`,
@@ -167,12 +180,12 @@ export const processImageUpload = async (req, res, next) => {
               { width: 800, height: 800, crop: 'limit', quality: 'auto' },
               { fetch_format: 'auto' }
             ],
-            resource_type: 'auto', // Automatically detect file type
-            eager_async: false, // Process transformations synchronously for faster response
-            timeout: 30000, // 30 second timeout
-            chunk_size: 1000000 // 1MB chunk size for faster uploads
+            resource_type: 'auto',
+            timeout: 30000
           },
           (error, result) => {
+            clearTimeout(timeoutId);
+            
             if (error) {
               console.error(`Cloudinary upload error (attempt ${attempt}):`, error);
               console.error('Error details:', {
@@ -191,24 +204,6 @@ export const processImageUpload = async (req, res, next) => {
             }
           }
         );
-        
-        // Add timeout handling - much shorter timeout
-        const timeoutId = setTimeout(() => {
-          console.error(`Cloudinary upload timeout (attempt ${attempt})`);
-          reject(new Error('Cloudinary upload timeout'));
-        }, 8000); // 8 second timeout
-        
-        uploadStream.on('error', (error) => {
-          clearTimeout(timeoutId);
-          console.error(`Cloudinary stream error (attempt ${attempt}):`, error);
-          reject(error);
-        });
-        
-        uploadStream.on('end', () => {
-          clearTimeout(timeoutId);
-        });
-        
-        uploadStream.end(compressedBuffer);
       });
 
       // Add Cloudinary data to request body
@@ -263,8 +258,9 @@ export const processImageUpload = async (req, res, next) => {
             retryable: true,
             fallback: 'Use manual mode to add clothing without images',
             details: {
-              issue: 'DNS resolution failed for Cloudinary servers',
-              suggestion: 'Check your internet connection or try again later'
+              issue: 'Cloudinary upload service is not responding',
+              suggestion: 'Use manual mode to add clothing without images',
+              manualEndpoint: '/api/metadata/manual'
             }
           });
         }
