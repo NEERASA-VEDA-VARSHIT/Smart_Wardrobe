@@ -149,6 +149,15 @@ export const processImageUpload = async (req, res, next) => {
       console.log(`Starting Cloudinary upload attempt ${attempt}...`);
       console.log(`Image size: ${compressedBuffer.length} bytes`);
       
+      // Test Cloudinary connection first
+      try {
+        await cloudinary.api.ping();
+        console.log('✅ Cloudinary connection test passed');
+      } catch (pingError) {
+        console.error('❌ Cloudinary connection test failed:', pingError);
+        throw new Error('Cloudinary service unavailable');
+      }
+      
       const result = await new Promise((resolve, reject) => {
         const uploadStream = cloudinary.uploader.upload_stream(
           {
@@ -159,9 +168,9 @@ export const processImageUpload = async (req, res, next) => {
               { fetch_format: 'auto' }
             ],
             resource_type: 'auto', // Automatically detect file type
-            eager_async: true, // Process transformations asynchronously
-            timeout: 120000, // 2 minutes timeout
-            chunk_size: 6000000 // 6MB chunk size
+            eager_async: false, // Process transformations synchronously for faster response
+            timeout: 30000, // 30 second timeout
+            chunk_size: 1000000 // 1MB chunk size for faster uploads
           },
           (error, result) => {
             if (error) {
@@ -187,7 +196,7 @@ export const processImageUpload = async (req, res, next) => {
         const timeoutId = setTimeout(() => {
           console.error(`Cloudinary upload timeout (attempt ${attempt})`);
           reject(new Error('Cloudinary upload timeout'));
-        }, 15000); // 15 second timeout
+        }, 8000); // 8 second timeout
         
         uploadStream.on('error', (error) => {
           clearTimeout(timeoutId);
@@ -224,6 +233,8 @@ export const processImageUpload = async (req, res, next) => {
           error.message.includes('getaddrinfo') ||
           error.message.includes('ECONNRESET') ||
           error.message.includes('ECONNREFUSED') ||
+          error.message.includes('Cloudinary upload timeout') ||
+          error.message.includes('Cloudinary service unavailable') ||
           error.code === 'ENOTFOUND' ||
           error.code === 'ECONNRESET' ||
           error.code === 'ECONNREFUSED' ||
