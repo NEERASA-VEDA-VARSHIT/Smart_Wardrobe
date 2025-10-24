@@ -56,7 +56,7 @@ export const signUp = async (req, res) => {
     res.cookie("token", token, { 
       httpOnly: true, 
       secure: process.env.NODE_ENV === 'production', 
-      sameSite: process.env.NODE_ENV === 'production' ? "strict" : "lax", 
+      sameSite: process.env.NODE_ENV === 'production' ? "none" : "lax", 
       maxAge: 30*24*60*60*1000 
     });
     console.log("Sending success response...");
@@ -88,11 +88,25 @@ export const signIn = async (req, res) => {
     res.cookie("token", token, { 
       httpOnly: true, 
       secure: process.env.NODE_ENV === 'production', 
-      sameSite: process.env.NODE_ENV === 'production' ? "strict" : "lax", 
+      sameSite: process.env.NODE_ENV === 'production' ? "none" : "lax", 
       maxAge: 30*24*60*60*1000 
     });
 
   res.status(200).json({ user, message: "User signed in successfully" });
+}
+
+export const getCurrentUser = async (req, res) => {
+  try {
+    // The user is already attached to req.user by the isAuth middleware
+    const user = await User.findById(req.user.id).select('-password');
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    res.status(200).json(user);
+  } catch (error) {
+    console.error("Get current user error:", error);
+    res.status(500).json({ message: "Internal server error", error: error.message });
+  }
 }
 
 export const logout = async (req, res) => {
@@ -101,7 +115,7 @@ export const logout = async (req, res) => {
     res.clearCookie("token", {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: "strict"
+      sameSite: process.env.NODE_ENV === 'production' ? "none" : "lax"
     });
     
     res.status(200).json({ message: "User logged out successfully" });

@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { useSelector } from 'react-redux';
-import { selectUser, selectIsRehydrated } from './redux/userSlice';
+import { useSelector, useDispatch } from 'react-redux';
+import { selectUser, selectIsRehydrated, setUser, clearUser } from './redux/userSlice';
 import { checkStorageData, clearCorruptedStorage } from './utils/debugStorage';
+import { authAPI } from './api';
 import Navbar from './components/Navbar';
 import NotificationSystem from './components/NotificationSystem';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -26,7 +27,9 @@ import SharedCollectionView from './components/SharedCollectionView';
 function App() {
   const user = useSelector(selectUser);
   const isRehydrated = useSelector(selectIsRehydrated);
+  const dispatch = useDispatch();
   const [fallbackRehydrated, setFallbackRehydrated] = useState(false);
+  const [isVerifyingAuth, setIsVerifyingAuth] = useState(false);
 
   // Debug logging
   console.log("App render - user:", user, "isRehydrated:", isRehydrated, "fallbackRehydrated:", fallbackRehydrated);
@@ -48,6 +51,30 @@ function App() {
     }
   }, []);
 
+  // Verify authentication with backend when user is loaded from persistence
+  useEffect(() => {
+    const verifyAuth = async () => {
+      if (user && isRehydrated && !isVerifyingAuth) {
+        setIsVerifyingAuth(true);
+        try {
+          console.log("Verifying authentication with backend...");
+          const currentUser = await authAPI.getCurrentUser();
+          console.log("Authentication verified:", currentUser);
+          // Update user data if it's different
+          dispatch(setUser(currentUser));
+        } catch (error) {
+          console.error("Authentication verification failed:", error);
+          // Clear user data if authentication fails
+          dispatch(clearUser());
+        } finally {
+          setIsVerifyingAuth(false);
+        }
+      }
+    };
+
+    verifyAuth();
+  }, [user, isRehydrated, dispatch, isVerifyingAuth]);
+
   // Fallback: if rehydration doesn't happen within 2 seconds, assume no persisted data
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -60,9 +87,9 @@ function App() {
     return () => clearTimeout(timer);
   }, [isRehydrated]);
 
-  // Show loading while rehydrating
-  if (!isRehydrated && !fallbackRehydrated) {
-    console.log("App: Still rehydrating, showing loading screen");
+  // Show loading while rehydrating or verifying authentication
+  if ((!isRehydrated && !fallbackRehydrated) || isVerifyingAuth) {
+    console.log("App: Still rehydrating or verifying auth, showing loading screen");
     return (
       <div className="App">
         <div className="flex items-center justify-center min-h-screen">
