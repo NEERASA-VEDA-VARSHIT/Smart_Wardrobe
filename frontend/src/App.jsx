@@ -30,6 +30,7 @@ function App() {
   const dispatch = useDispatch();
   const [fallbackRehydrated, setFallbackRehydrated] = useState(false);
   const [isVerifyingAuth, setIsVerifyingAuth] = useState(false);
+  const [hasVerifiedAuth, setHasVerifiedAuth] = useState(false);
 
   // Debug logging
   console.log("App render - user:", user, "isRehydrated:", isRehydrated, "fallbackRehydrated:", fallbackRehydrated);
@@ -37,6 +38,10 @@ function App() {
   // Monitor user state changes
   useEffect(() => {
     console.log("App: User state changed:", user);
+    // Reset verification flag when user changes
+    if (!user) {
+      setHasVerifiedAuth(false);
+    }
   }, [user]);
 
   // Debug storage on mount
@@ -54,7 +59,7 @@ function App() {
   // Verify authentication with backend when user is loaded from persistence
   useEffect(() => {
     const verifyAuth = async () => {
-      if (user && isRehydrated && !isVerifyingAuth) {
+      if (user && isRehydrated && !isVerifyingAuth && !hasVerifiedAuth) {
         setIsVerifyingAuth(true);
         try {
           console.log("Verifying authentication with backend...");
@@ -62,10 +67,12 @@ function App() {
           console.log("Authentication verified:", currentUser);
           // Update user data if it's different
           dispatch(setUser(currentUser));
+          setHasVerifiedAuth(true);
         } catch (error) {
           console.error("Authentication verification failed:", error);
           // Clear user data if authentication fails
           dispatch(clearUser());
+          setHasVerifiedAuth(true);
         } finally {
           setIsVerifyingAuth(false);
         }
@@ -73,10 +80,10 @@ function App() {
     };
 
     // Only verify once when user is first loaded
-    if (user && isRehydrated && !isVerifyingAuth) {
+    if (user && isRehydrated && !isVerifyingAuth && !hasVerifiedAuth) {
       verifyAuth();
     }
-  }, [user, isRehydrated]); // Removed isVerifyingAuth from dependencies to prevent infinite loop
+  }, [user, isRehydrated, isVerifyingAuth, hasVerifiedAuth, dispatch]);
 
   // Fallback: if rehydration doesn't happen within 2 seconds, assume no persisted data
   useEffect(() => {
