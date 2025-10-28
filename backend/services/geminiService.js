@@ -67,38 +67,64 @@ export const generateClothingMetadata = async (imageBuffer, mimeType) => {
         }
       });
       
-      // Convert buffer to base64
+      // Convert buffer to base64 (resize image for faster processing)
       const base64Image = imageBuffer.toString('base64');
       
-      const prompt = `Analyze clothing image. Return JSON:
+      // Log image size for debugging
+      console.log(`Image size for Gemini: ${Math.round(base64Image.length / 1024)}KB`);
+      
+      // If image is too large, compress it further for Gemini
+      let processedImage = base64Image;
+      if (base64Image.length > 500000) { // If larger than ~500KB
+        console.log('Image too large for Gemini, compressing further...');
+        const sharp = await import('sharp');
+        const compressedBuffer = await sharp.default(imageBuffer)
+          .resize(400, 400, { fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 60 })
+          .toBuffer();
+        processedImage = compressedBuffer.toString('base64');
+        console.log(`Compressed for Gemini: ${Math.round(processedImage.length / 1024)}KB`);
+      }
+      
+      const prompt = `Analyze clothing image. Return ONLY valid JSON:
       {
-        "category": "top|bottom|dress|outerwear|shoes|accessories|underwear|other",
+        "category": "top|bottom|dress|outerwear|shoes|accessories",
         "subcategory": "specific type",
-        "color": {"primary": "main color", "secondary": "secondary color if any"},
-        "fabric": "material type",
+        "color": {"primary": "main color"},
+        "fabric": "material",
         "brand": "brand if visible",
         "size": "size if visible", 
-        "pattern": "solid|striped|polka-dot|floral|geometric|other",
+        "pattern": "solid|striped|floral|other",
         "season": "spring|summer|fall|winter|all-season",
-        "formality": "casual|business-casual|business|formal|semi-formal",
-        "occasion": ["work", "party", "gym", "date", "casual", "formal"],
-        "tags": ["descriptive", "tags"],
-        "description": "brief description"
+        "formality": "casual|business|formal",
+        "occasion": ["casual", "work", "party"],
+        "tags": ["descriptive"],
+        "description": "brief"
       }
-      JSON only.`;
+      No markdown, no extra text, just JSON.`;
 
-      const result = await model.generateContent([
-        prompt,
-        {
-          inlineData: {
-            data: base64Image,
-            mimeType: mimeType
+      // Add timeout wrapper for Gemini API call
+      const geminiTimeout = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Gemini API timeout')), 20000); // 20 second timeout
+      });
+
+      const result = await Promise.race([
+        model.generateContent([
+          prompt,
+          {
+            inlineData: {
+              data: processedImage,
+              mimeType: mimeType
+            }
           }
-        }
+        ]),
+        geminiTimeout
       ]);
 
       const response = await result.response;
       const text = response.text();
+      
+      console.log('Gemini raw response:', text.substring(0, 200) + '...');
       
       // Extract JSON from markdown code blocks if present
       let jsonText = text;
@@ -113,6 +139,19 @@ export const generateClothingMetadata = async (imageBuffer, mimeType) => {
         }
       }
       
+      // Clean up incomplete JSON more aggressively
+      jsonText = jsonText.replace(/,\s*"[^"]*$/, ''); // Remove incomplete property at end
+      jsonText = jsonText.replace(/,\s*"[^"]*"[^"]*$/, ''); // Remove incomplete property with quotes
+      jsonText = jsonText.replace(/,\s*$/, ''); // Remove trailing comma
+      jsonText = jsonText.replace(/,\s*"[^"]*":\s*"[^"]*$/, ''); // Remove incomplete key-value pair
+      
+      // Ensure JSON is properly closed
+      if (!jsonText.trim().endsWith('}')) {
+        jsonText = jsonText.trim() + '}';
+      }
+      
+      console.log('Cleaned JSON text:', jsonText.substring(0, 200) + '...');
+      
       // Parse JSON response
       let metadata;
       try {
@@ -121,7 +160,52 @@ export const generateClothingMetadata = async (imageBuffer, mimeType) => {
         console.error('JSON parsing error:', parseError);
         console.error('Raw text:', text);
         console.error('Extracted JSON text:', jsonText);
-        throw new Error(`Failed to parse JSON response: ${parseError.message}`);
+        
+        // Try to create a fallback metadata object
+        console.log('Creating fallback metadata due to parsing error');
+        
+        // Try to extract what we can from the partial JSON
+        let partialMetadata = {};
+        try {
+          // Extract basic info from the raw text
+          const categoryMatch = text.match(/"category":\s*"([^"]+)"/);
+          const colorMatch = text.match(/"primary":\s*"([^"]+)"/);
+          const fabricMatch = text.match(/"fabric":\s*"([^"]+)"/);
+          const patternMatch = text.match(/"pattern":\s*"([^"]+)"/);
+          
+          partialMetadata = {
+            category: categoryMatch ? categoryMatch[1] : "other",
+            subcategory: "unknown",
+            color: { primary: colorMatch ? colorMatch[1] : "unknown" },
+            fabric: fabricMatch ? fabricMatch[1] : "unknown",
+            brand: null,
+            size: null,
+            pattern: patternMatch ? patternMatch[1] : "solid",
+            season: "all-season",
+            formality: "casual",
+            occasion: ["casual"],
+            tags: ["unknown"],
+            description: "Unable to fully analyze image"
+          };
+        } catch (extractError) {
+          // If extraction fails, use default fallback
+          partialMetadata = {
+            category: "other",
+            subcategory: "unknown",
+            color: { primary: "unknown" },
+            fabric: "unknown",
+            brand: null,
+            size: null,
+            pattern: "solid",
+            season: "all-season",
+            formality: "casual",
+            occasion: ["casual"],
+            tags: ["unknown"],
+            description: "Unable to analyze image"
+          };
+        }
+        
+        metadata = partialMetadata;
       }
       
       console.log(`✅ Gemini API successful on attempt ${attempt}`);

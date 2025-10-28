@@ -58,9 +58,9 @@ metadataRouter.post('/generate', metadataLimiter, uploadSingleImage('image'), pr
     const imageBuffer = Buffer.from(req.file.buffer || req.file.path);
     const mimeType = req.file.mimetype;
 
-    // Add timeout wrapper for Vercel compatibility (reduced to 5 seconds)
+    // Add timeout wrapper for Vercel compatibility (increased to 30 seconds)
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Request timeout')), 5000); // 5 second timeout
+      setTimeout(() => reject(new Error('Request timeout')), 30000); // 30 second timeout
     });
 
     const result = await Promise.race([

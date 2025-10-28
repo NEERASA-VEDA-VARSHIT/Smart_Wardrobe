@@ -26,7 +26,8 @@ const app = express();
 const PORT = process.env.PORT || 8000;
 
 // Behind Vercel/Proxies we must trust proxy to get correct client IPs
-app.set('trust proxy', true);
+// Only trust proxy in production to avoid rate limiting bypass issues
+app.set('trust proxy', process.env.NODE_ENV === 'production' ? 1 : false);
 
 // CORS configuration for production - More permissive
 const corsOptions = {

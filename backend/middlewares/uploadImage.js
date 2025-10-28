@@ -145,7 +145,7 @@ export const processImageUpload = async (req, res, next) => {
       const compressionSettings = getCompressionSettings(req.file.size);
       const compressedBuffer = await compressImage(req.file.buffer, compressionSettings);
       
-      // Upload to Cloudinary with timeout
+      // Upload to Cloudinary with reasonable timeout
       console.log(`Starting Cloudinary upload attempt ${attempt}...`);
       console.log(`Image size: ${compressedBuffer.length} bytes`);
       
@@ -158,34 +158,25 @@ export const processImageUpload = async (req, res, next) => {
         throw new Error('Cloudinary service unavailable');
       }
       
-        // Use direct upload instead of stream to avoid hanging
-        console.log('Using direct Cloudinary upload...');
-        const result = await new Promise((resolve, reject) => {
-          // Add timeout handling
-          const timeoutId = setTimeout(() => {
-            console.error(`Cloudinary upload timeout (attempt ${attempt})`);
-            reject(new Error('Cloudinary upload timeout'));
-          }, 3000); // 3 second timeout - much faster
-        
+      // Use direct upload with base64 (no aggressive internal timeout)
+      console.log('Using direct Cloudinary upload...');
+      const result = await new Promise((resolve, reject) => {
         // Use direct upload with base64
         const base64String = compressedBuffer.toString('base64');
         const dataUri = `data:${req.file.mimetype};base64,${base64String}`;
+        
+        console.log('Starting Cloudinary upload with dataUri length:', dataUri.length);
         
         cloudinary.uploader.upload(
           dataUri,
           {
             folder: 'smart-wardrobe',
             public_id: `clothing-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`,
-            transformation: [
-              { width: 800, height: 800, crop: 'limit', quality: 'auto' },
-              { fetch_format: 'auto' }
-            ],
-            resource_type: 'auto',
-            timeout: 5000
+            resource_type: 'image',
+            timeout: 60000 // 60s SDK timeout
           },
           (error, result) => {
-            clearTimeout(timeoutId);
-            
+            console.log('Cloudinary upload callback triggered');
             if (error) {
               console.error(`Cloudinary upload error (attempt ${attempt}):`, error);
               console.error('Error details:', {

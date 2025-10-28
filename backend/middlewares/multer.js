@@ -7,7 +7,7 @@ const storage = multer.memoryStorage();
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 2 * 1024 * 1024, // 2MB limit - reduced for faster processing
+    fileSize: 10 * 1024 * 1024, // 10MB limit for single uploads
     files: 1 // Allow only 1 file for single uploads
   },
   fileFilter: (req, file, cb) => {
@@ -24,9 +24,9 @@ const upload = multer({
 const batchUpload = multer({
   storage: storage,
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB limit per file (reduced for batch)
+    fileSize: 8 * 1024 * 1024, // 8MB limit per file for batch uploads
     files: 10, // Allow up to 10 files (reduced for better performance)
-    fieldSize: 50 * 1024 * 1024 // 50MB total field size
+    fieldSize: 100 * 1024 * 1024 // 100MB total field size for batch form
   },
   fileFilter: (req, file, cb) => {
     // Check file type
@@ -48,7 +48,7 @@ const handleUploadError = (error, req, res, next) => {
     if (error.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({
         success: false,
-        message: 'File too large. Maximum size is 2MB per file for single uploads, 5MB for batch uploads.'
+        message: 'File too large. Maximum size is 10MB per file for single uploads, 8MB per file for batch uploads.'
       });
     }
     if (error.code === 'LIMIT_FILE_COUNT') {

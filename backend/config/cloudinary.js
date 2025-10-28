@@ -1,4 +1,4 @@
-import cloudinary from 'cloudinary';
+import { v2 as cloudinary } from 'cloudinary';
 import { upload, handleUploadError } from '../middlewares/multer.js';
 import dotenv from 'dotenv';
 
@@ -18,7 +18,7 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
   secure: true,
-  timeout: 120000, // 2 minutes timeout
+  timeout: 60000, // 1 minute timeout
   chunk_size: 6000000 // 6MB chunk size for large files
 });
 
