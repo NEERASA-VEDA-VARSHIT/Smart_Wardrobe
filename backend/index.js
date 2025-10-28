@@ -25,6 +25,9 @@ import cors from "cors";
 const app = express();
 const PORT = process.env.PORT || 8000;
 
+// Behind Vercel/Proxies we must trust proxy to get correct client IPs
+app.set('trust proxy', true);
+
 // CORS configuration for production - More permissive
 const corsOptions = {
     origin: function (origin, callback) {

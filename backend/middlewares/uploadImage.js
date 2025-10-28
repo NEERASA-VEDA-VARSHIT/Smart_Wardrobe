@@ -158,14 +158,14 @@ export const processImageUpload = async (req, res, next) => {
         throw new Error('Cloudinary service unavailable');
       }
       
-      // Use direct upload instead of stream to avoid hanging
-      console.log('Using direct Cloudinary upload...');
-      const result = await new Promise((resolve, reject) => {
-        // Add timeout handling
-        const timeoutId = setTimeout(() => {
-          console.error(`Cloudinary upload timeout (attempt ${attempt})`);
-          reject(new Error('Cloudinary upload timeout'));
-        }, 8000); // 8 second timeout
+        // Use direct upload instead of stream to avoid hanging
+        console.log('Using direct Cloudinary upload...');
+        const result = await new Promise((resolve, reject) => {
+          // Add timeout handling
+          const timeoutId = setTimeout(() => {
+            console.error(`Cloudinary upload timeout (attempt ${attempt})`);
+            reject(new Error('Cloudinary upload timeout'));
+          }, 3000); // 3 second timeout - much faster
         
         // Use direct upload with base64
         const base64String = compressedBuffer.toString('base64');
@@ -181,7 +181,7 @@ export const processImageUpload = async (req, res, next) => {
               { fetch_format: 'auto' }
             ],
             resource_type: 'auto',
-            timeout: 30000
+            timeout: 5000
           },
           (error, result) => {
             clearTimeout(timeoutId);

@@ -44,8 +44,8 @@ export const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-
  * @returns {Object} Generated metadata
  */
 export const generateClothingMetadata = async (imageBuffer, mimeType) => {
-  const maxRetries = 2; // Reduced retries for faster failure
-  const retryDelay = 1000; // 1 second delay
+  const maxRetries = 1; // Reduced to 1 retry for faster failure
+  const retryDelay = 500; // 500ms delay
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -55,7 +55,17 @@ export const generateClothingMetadata = async (imageBuffer, mimeType) => {
 
       console.log(`Gemini API attempt ${attempt}/${maxRetries}`);
 
-      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+      // Use faster model with stricter config
+      const model = genAI.getGenerativeModel({ 
+        model: "gemini-2.5-flash-lite",
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 150, // Further reduced
+          topP: 0.5,
+          topK: 5,
+          candidateCount: 1,
+        }
+      });
       
       // Convert buffer to base64
       const base64Image = imageBuffer.toString('base64');

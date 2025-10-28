@@ -7,6 +7,37 @@ import { metadataLimiter } from '../middlewares/rateLimiter.js';
 
 const metadataRouter = express.Router();
 
+// CORS middleware specifically for metadata routes
+metadataRouter.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const allowedOrigins = process.env.NODE_ENV === 'production' 
+      ? [
+          'https://smart-wardrobe-five.vercel.app',
+          'https://smart-wardrobe-frontend.vercel.app', 
+          'https://smart-wardrobe-eta.vercel.app',
+          process.env.FRONTEND_URL, 
+          process.env.ALLOWED_ORIGINS?.split(',')
+        ].flat().filter(Boolean)
+      : ['http://localhost:5173', 'http://localhost:3000'];
+  
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else {
+    res.header('Access-Control-Allow-Origin', '*');
+  }
+  
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma');
+  res.header('Access-Control-Max-Age', '86400');
+  
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  next();
+});
+
 // All routes require authentication
 metadataRouter.use(isAuth);
 
@@ -27,9 +58,9 @@ metadataRouter.post('/generate', metadataLimiter, uploadSingleImage('image'), pr
     const imageBuffer = Buffer.from(req.file.buffer || req.file.path);
     const mimeType = req.file.mimetype;
 
-    // Add timeout wrapper for Vercel compatibility (reduced to 10 seconds)
+    // Add timeout wrapper for Vercel compatibility (reduced to 5 seconds)
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Request timeout')), 10000); // 10 second timeout
+      setTimeout(() => reject(new Error('Request timeout')), 5000); // 5 second timeout
     });
 
     const result = await Promise.race([
