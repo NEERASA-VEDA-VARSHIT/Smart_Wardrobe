@@ -12,6 +12,7 @@ import clothingItemRouter from "./routes/clothingItem.routes.js";
 import collectionRouter from "./routes/collection.routes.js";
 import metadataRouter from "./routes/metadata.routes.js";
 import batchMetadataRouter from "./routes/batchMetadata.routes.js";
+import backgroundProcessingRouter from "./routes/backgroundProcessing.routes.js";
 import recommendationRouter from "./routes/recommendation.routes.js";
 import laundryRouter from "./routes/laundry.routes.js";
 import laundrySuggestionRouter from "./routes/laundrySuggestion.routes.js";
@@ -123,6 +124,9 @@ app.use("/api/collections", collectionRouter);
 
 // Metadata routes
 app.use("/api/metadata", metadataRouter);
+
+// Background processing routes
+app.use("/api/background", backgroundProcessingRouter);
 
 // Batch metadata routes
 app.use("/api/batch-metadata", batchMetadataRouter);

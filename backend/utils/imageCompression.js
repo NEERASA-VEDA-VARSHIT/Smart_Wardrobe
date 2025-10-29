@@ -77,31 +77,31 @@ export const getCompressionSettings = (fileSizeBytes) => {
   
   if (fileSizeKB > 5000) { // > 5MB
     return {
-      maxWidth: 500,
-      maxHeight: 500,
-      quality: 70,
-      maxSizeKB: 500
+      maxWidth: 1200,
+      maxHeight: 1200,
+      quality: 85,
+      maxSizeKB: 800 // Better quality for display
     };
   } else if (fileSizeKB > 2000) { // > 2MB
     return {
-      maxWidth: 600,
-      maxHeight: 600,
-      quality: 75,
-      maxSizeKB: 800
+      maxWidth: 1400,
+      maxHeight: 1400,
+      quality: 88,
+      maxSizeKB: 1000
     };
   } else if (fileSizeKB > 1000) { // > 1MB
     return {
-      maxWidth: 700,
-      maxHeight: 700,
-      quality: 80,
-      maxSizeKB: 1000
+      maxWidth: 1600,
+      maxHeight: 1600,
+      quality: 90,
+      maxSizeKB: 1200
     };
   } else {
     return {
-      maxWidth: 800,
-      maxHeight: 800,
-      quality: 85,
-      maxSizeKB: 1200
+      maxWidth: 1800,
+      maxHeight: 1800,
+      quality: 92,
+      maxSizeKB: 1500
     };
   }
 };

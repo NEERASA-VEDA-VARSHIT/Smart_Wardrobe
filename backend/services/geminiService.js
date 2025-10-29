@@ -55,16 +55,34 @@ export const generateClothingMetadata = async (imageBuffer, mimeType) => {
 
       console.log(`Gemini API attempt ${attempt}/${maxRetries}`);
 
-      // Use faster model with stricter config
+      // Use optimized model for better accuracy
       const model = genAI.getGenerativeModel({ 
         model: "gemini-2.5-flash-lite",
         generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 150, // Further reduced
-          topP: 0.5,
-          topK: 5,
+          temperature: 0.1, // Lower temperature for more consistent results
+          maxOutputTokens: 500, // More tokens for detailed analysis
+          topP: 0.8,
+          topK: 20,
           candidateCount: 1,
-        }
+        },
+        safetySettings: [
+          {
+            category: "HARM_CATEGORY_HARASSMENT",
+            threshold: "BLOCK_NONE"
+          },
+          {
+            category: "HARM_CATEGORY_HATE_SPEECH", 
+            threshold: "BLOCK_NONE"
+          },
+          {
+            category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+            threshold: "BLOCK_NONE"
+          },
+          {
+            category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+            threshold: "BLOCK_NONE"
+          }
+        ]
       });
       
       // Convert buffer to base64 (resize image for faster processing)
@@ -72,42 +90,48 @@ export const generateClothingMetadata = async (imageBuffer, mimeType) => {
       
       // Log image size for debugging
       console.log(`Image size for Gemini: ${Math.round(base64Image.length / 1024)}KB`);
+      console.log(`Base64 starts with: ${base64Image.substring(0, 50)}...`);
       
-      // If image is too large, compress it further for Gemini
+      // Optimize image for Gemini analysis (balance between size and accuracy)
       let processedImage = base64Image;
-      if (base64Image.length > 500000) { // If larger than ~500KB
-        console.log('Image too large for Gemini, compressing further...');
+      if (base64Image.length > 2000000) { // If larger than ~2MB
+        console.log('Image too large for Gemini, optimizing for analysis...');
         const sharp = await import('sharp');
         const compressedBuffer = await sharp.default(imageBuffer)
-          .resize(400, 400, { fit: 'inside', withoutEnlargement: true })
-          .jpeg({ quality: 60 })
+          .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 85 }) // Higher quality for better accuracy
           .toBuffer();
         processedImage = compressedBuffer.toString('base64');
-        console.log(`Compressed for Gemini: ${Math.round(processedImage.length / 1024)}KB`);
+        console.log(`Optimized for Gemini: ${Math.round(processedImage.length / 1024)}KB`);
+        console.log(`Optimized base64 starts with: ${processedImage.substring(0, 50)}...`);
       }
       
-      const prompt = `Analyze clothing image. Return ONLY valid JSON:
-      {
-        "category": "top|bottom|dress|outerwear|shoes|accessories",
-        "subcategory": "specific type",
-        "color": {"primary": "main color"},
-        "fabric": "material",
-        "brand": "brand if visible",
-        "size": "size if visible", 
-        "pattern": "solid|striped|floral|other",
-        "season": "spring|summer|fall|winter|all-season",
-        "formality": "casual|business|formal",
-        "occasion": ["casual", "work", "party"],
-        "tags": ["descriptive"],
-        "description": "brief"
-      }
-      No markdown, no extra text, just JSON.`;
+      const prompt = `Analyze this clothing image and return a JSON object with these exact fields:
 
-      // Add timeout wrapper for Gemini API call
+{
+  "category": "top",
+  "subcategory": "t-shirt",
+  "color": {"primary": "blue"},
+  "fabric": "cotton",
+  "brand": null,
+  "size": null,
+  "pattern": "solid",
+  "season": "all-season",
+  "formality": "casual",
+  "occasion": ["casual"],
+  "tags": ["comfortable", "everyday"],
+  "description": "A casual blue t-shirt"
+}
+
+Return only the JSON object, no other text.`;
+
+      // Add timeout wrapper for Gemini API call (increased to 30 seconds)
       const geminiTimeout = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Gemini API timeout')), 20000); // 20 second timeout
+        setTimeout(() => reject(new Error('Gemini API timeout')), 30000); // 30 second timeout
       });
 
+      console.log('Sending request to Gemini with processed image size:', Math.round(processedImage.length / 1024), 'KB');
+      
       const result = await Promise.race([
         model.generateContent([
           prompt,
@@ -121,21 +145,39 @@ export const generateClothingMetadata = async (imageBuffer, mimeType) => {
         geminiTimeout
       ]);
 
+      console.log('Gemini API call completed successfully');
+
       const response = await result.response;
       const text = response.text();
       
-      console.log('Gemini raw response:', text.substring(0, 200) + '...');
+      console.log('Gemini raw response length:', text.length);
+      console.log('Gemini raw response:', text);
+      
+      // Check if response is empty
+      if (!text || text.trim().length === 0) {
+        throw new Error('Empty response from Gemini API');
+      }
       
       // Extract JSON from markdown code blocks if present
-      let jsonText = text;
-      const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/);
+      let jsonText = text.trim();
+      
+      // Remove markdown code blocks
+      const jsonMatch = jsonText.match(/```json\n([\s\S]*?)\n```/);
       if (jsonMatch && jsonMatch[1]) {
-        jsonText = jsonMatch[1];
+        jsonText = jsonMatch[1].trim();
       } else {
         // Try to find JSON object in the text
-        const jsonObjectMatch = text.match(/\{[\s\S]*\}/);
+        const jsonObjectMatch = jsonText.match(/\{[\s\S]*\}/);
         if (jsonObjectMatch) {
           jsonText = jsonObjectMatch[0];
+        }
+      }
+      
+      // If we still don't have valid JSON, try to extract from the beginning
+      if (!jsonText.startsWith('{')) {
+        const startIndex = jsonText.indexOf('{');
+        if (startIndex !== -1) {
+          jsonText = jsonText.substring(startIndex);
         }
       }
       
@@ -151,6 +193,11 @@ export const generateClothingMetadata = async (imageBuffer, mimeType) => {
       }
       
       console.log('Cleaned JSON text:', jsonText.substring(0, 200) + '...');
+      
+      // Validate that we have actual JSON content
+      if (jsonText.length < 10 || jsonText === '{}' || jsonText === '}') {
+        throw new Error('Invalid or empty JSON response from Gemini');
+      }
       
       // Parse JSON response
       let metadata;
