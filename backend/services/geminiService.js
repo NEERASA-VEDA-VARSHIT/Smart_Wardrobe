@@ -506,3 +506,54 @@ export const generateOutfitRecommendation = async (prompt) => {
     };
   }
 };
+
+/**
+ * Generate 2-5 outfit sets from provided items using constraints
+ * @param {Array} items - Array of items with {id,_id,metadata:{category,subcategory,color,formality,season,occasion}, imageUrl}
+ * @param {Object} context - {weather, temperature, occasion, timeOfDay}
+ */
+export const generateOutfitSets = async (items, context = {}) => {
+  try {
+    const compactItems = items.map(it => ({
+      id: it._id?.toString?.() || it.id,
+      type: it.metadata?.subcategory || it.metadata?.category || 'item',
+      category: it.metadata?.category,
+      color: it.metadata?.color?.primary,
+      season: it.metadata?.season,
+      formality: it.metadata?.formality,
+      occasion: it.metadata?.occasion,
+    }));
+
+    const prompt = `You are a stylist. From the provided wardrobe items, create between 2 and 5 complete outfits.
+
+Constraints:
+- Match weather: ${context.weather || 'moderate'} and temperature: ${context.temperature ?? 'moderate'}
+- Occasion: ${context.occasion || 'casual'}; Time: ${context.timeOfDay || 'day'}
+- Use only provided item IDs. Prefer one top, one bottom, shoes; optionally outerwear/accessories.
+
+Wardrobe Items (JSON): ${JSON.stringify(compactItems).slice(0, 12000)}
+
+Return ONLY JSON in this schema:
+{
+  "outfits": [
+    {
+      "title": "string",
+      "items": ["id1","id2","id3"],
+      "reasoning": "why this works for weather/occasion"
+    }
+  ]
+}`;
+
+    const result = await geminiModel.generateContent(prompt);
+    const text = (await result.response).text();
+    let json = text;
+    const match = text.match(/```json\n([\s\S]*?)\n```/);
+    if (match) json = match[1];
+    const data = JSON.parse(json);
+    if (!Array.isArray(data.outfits)) throw new Error('Invalid schema');
+    return { success: true, data };
+  } catch (error) {
+    console.error('generateOutfitSets error:', error);
+    return { success: false, error: error.message };
+  }
+};

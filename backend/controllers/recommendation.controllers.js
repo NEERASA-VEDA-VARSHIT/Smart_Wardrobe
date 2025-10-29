@@ -2,7 +2,7 @@ import ClothingItem from "../models/clothingItem.model.js";
 import OutfitRecommendation from "../models/outfitRecommendation.model.js";
 import LaundryItem from "../models/laundryItem.model.js";
 import { findSimilarItemsByText, findComplementaryItems, getOutfitRecommendations } from "../services/vectorSearch.js";
-import { geminiModel } from "../services/geminiService.js";
+import { geminiModel, generateOutfitSets } from "../services/geminiService.js";
 import { cacheService } from "../services/cacheService.js";
 
 /**
@@ -155,6 +155,58 @@ STYLING_TIPS: [Additional styling advice for the weather conditions]`;
       message: 'Failed to generate outfit recommendations',
       error: error.message
     });
+  }
+};
+
+/**
+ * Generate multiple visual outfit sets from user's wardrobe (RAG over own items)
+ * POST /api/recommendations/outfits/:userId
+ */
+export const recommendOutfitSets = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { occasion = 'casual', timeOfDay = 'day', weather = 'moderate', temperature } = req.body || {};
+    if (!userId) return res.status(400).json({ success: false, message: 'User ID is required' });
+
+    // Exclude items in laundry
+    const laundryItems = await LaundryItem.find({ userId, status: { $in: ['in_laundry', 'washed'] } }).select('clothingId');
+    const excludeIds = new Set(laundryItems.map(i => i.clothingId.toString()));
+
+    // Fetch user's items and filter by season/formality/occasion if present
+    const all = await ClothingItem.find({ userId, isArchived: { $ne: true } })
+      .select('metadata imageUrl createdAt')
+      .lean();
+
+    const filtered = all.filter(it => !excludeIds.has(it._id.toString()))
+      .filter(it => {
+        const m = it.metadata || {};
+        const okSeason = !m.season || m.season === 'all-season' || (weather?.toLowerCase?.().includes('cold') ? m.season !== 'summer' : true);
+        const okFormality = !m.formality || occasion === 'general' || m.formality.includes?.(occasion) || true;
+        return okSeason && okFormality;
+      })
+      .sort((a,b)=> new Date(b.createdAt)-new Date(a.createdAt))
+      .slice(0, 15);
+
+    // Ask Gemini to build 2-5 outfit sets from these items
+    const ai = await generateOutfitSets(filtered, { occasion, timeOfDay, weather, temperature });
+    if (!ai.success) return res.status(502).json({ success: false, message: 'AI generation failed', error: ai.error });
+
+    // Map item ids to full items with imageUrl for rendering
+    const idToItem = new Map(filtered.map(i => [i._id.toString(), i]));
+    const outfits = ai.data.outfits.map(o => ({
+      title: o.title,
+      reasoning: o.reasoning,
+      items: (o.items || []).map(id => ({
+        id,
+        imageUrl: idToItem.get(id)?.imageUrl,
+        metadata: idToItem.get(id)?.metadata
+      })).filter(x => x.imageUrl)
+    })).filter(o => (o.items?.length || 0) >= 2);
+
+    return res.status(200).json({ success: true, data: { outfits, source: 'gemini', totalCandidates: filtered.length } });
+  } catch (error) {
+    console.error('recommendOutfitSets error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to generate outfit sets', error: error.message });
   }
 };
 

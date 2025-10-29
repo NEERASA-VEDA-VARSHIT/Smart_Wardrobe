@@ -7,7 +7,8 @@ import {
   getComplementaryItems,
   getRecommendationHistory,
   provideFeedback,
-  markAsWorn
+  markAsWorn,
+  recommendOutfitSets
 } from '../controllers/recommendation.controllers.js';
 
 const recommendationRouter = express.Router();
@@ -20,6 +21,12 @@ recommendationRouter.use(isAuth);
  * Generate AI-powered outfit recommendations
  */
 recommendationRouter.post('/outfit/:userId', recommendationLimiter, recommendOutfits);
+
+/**
+ * POST /api/recommendations/outfits/:userId
+ * Generate 2-5 visual outfit sets (RAG over wardrobe)
+ */
+recommendationRouter.post('/outfits/:userId', recommendationLimiter, recommendOutfitSets);
 
 /**
  * GET /api/recommendations/weather/:userId
