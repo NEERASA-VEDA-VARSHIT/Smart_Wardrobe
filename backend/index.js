@@ -12,6 +12,7 @@ import clothingItemRouter from "./routes/clothingItem.routes.js";
 import collectionRouter from "./routes/collection.routes.js";
 import metadataRouter from "./routes/metadata.routes.js";
 import batchMetadataRouter from "./routes/batchMetadata.routes.js";
+import uploadsRouter from "./routes/uploads.routes.js";
 import backgroundProcessingRouter from "./routes/backgroundProcessing.routes.js";
 import recommendationRouter from "./routes/recommendation.routes.js";
 import laundryRouter from "./routes/laundry.routes.js";
@@ -130,6 +131,9 @@ app.use("/api/background", backgroundProcessingRouter);
 
 // Batch metadata routes
 app.use("/api/batch-metadata", batchMetadataRouter);
+
+// Upload signature routes (for client-side Cloudinary)
+app.use("/api/uploads", uploadsRouter);
 
 // Recommendation routes
 app.use("/api/recommendations", recommendationRouter);

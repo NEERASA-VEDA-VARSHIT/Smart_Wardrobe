@@ -2,6 +2,7 @@ import express from 'express';
 import { generateClothingMetadata } from '../services/geminiService.js';
 import { isAuth } from '../middlewares/isAuth.js';
 import { uploadMultipleImages, processMultipleImageUploads } from '../middlewares/uploadImage.js';
+import axios from 'axios';
 
 const batchMetadataRouter = express.Router();
 
@@ -126,3 +127,68 @@ batchMetadataRouter.post('/generate', uploadMultipleImages('images', 20), proces
 });
 
 export default batchMetadataRouter;
+
+/**
+ * POST /api/batch-metadata/generate-from-urls
+ * Accept array of { imageUrl, publicId, fileName } uploaded client-side to Cloudinary.
+ * Backend fetches each URL, converts to buffer, and runs Gemini.
+ */
+batchMetadataRouter.post('/generate-from-urls', async (req, res) => {
+  try {
+    const { items } = req.body || {};
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ success: false, message: 'No items provided' });
+    }
+
+    // Process in small batches to avoid rate limits
+    const batchSize = 3;
+    const results = [];
+
+    for (let i = 0; i < items.length; i += batchSize) {
+      const batch = items.slice(i, i + batchSize);
+      const promises = batch.map(async (it, idx) => {
+        try {
+          if (!it?.imageUrl) throw new Error('Missing imageUrl');
+          // Fetch Cloudinary image as buffer
+          const response = await axios.get(it.imageUrl, { responseType: 'arraybuffer' });
+          const buffer = Buffer.from(response.data);
+          const mimeType = response.headers['content-type'] || 'image/jpeg';
+          const result = await generateClothingMetadata(buffer, mimeType);
+          if (result.success) {
+            return {
+              success: true,
+              data: result.metadata,
+              imageUrl: it.imageUrl,
+              fileName: it.fileName || undefined,
+              publicId: it.publicId || undefined
+            };
+          }
+          return { success: false, error: result.error, fileName: it.fileName };
+        } catch (e) {
+          return { success: false, error: e.message, fileName: it?.fileName };
+        }
+      });
+      const batchResults = await Promise.all(promises);
+      results.push(...batchResults);
+      if (i + batchSize < items.length) {
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    }
+
+    const successful = results.filter(r => r.success);
+    const failed = results.filter(r => !r.success);
+    return res.status(200).json({
+      success: true,
+      data: {
+        successful,
+        failed,
+        total: items.length,
+        successCount: successful.length,
+        failureCount: failed.length
+      }
+    });
+  } catch (error) {
+    console.error('Error in generate-from-urls:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+  }
+});

@@ -167,15 +167,42 @@ const AddClothing = () => {
           setMetadataError('Failed to generate metadata');
         }
       } else {
-        // For multiple images, use batch processing
-        const formData = new FormData();
-        selectedImages.forEach(image => {
-          formData.append('images', image);
+        // For multiple images: client-direct upload to Cloudinary, then send URLs to backend
+        const uploadOne = async (file) => {
+          // get signed params
+          const sigRes = await fetch(`${API_BASE_URL}/uploads/signature`, { method: 'POST', credentials: 'include' });
+          const sigData = await sigRes.json();
+          if (!sigData?.success) throw new Error('Failed to get upload signature');
+          const { data: { timestamp, folder, signature, cloudName, apiKey } } = sigData;
+          const fd = new FormData();
+          fd.append('file', file);
+          fd.append('api_key', apiKey);
+          fd.append('timestamp', timestamp);
+          fd.append('folder', folder);
+          fd.append('signature', signature);
+          const cloudRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: 'POST', body: fd });
+          const cloudJson = await cloudRes.json();
+          if (!cloudRes.ok) throw new Error(cloudJson?.error?.message || 'Cloudinary upload failed');
+          return { imageUrl: cloudJson.secure_url, publicId: cloudJson.public_id, fileName: file.name };
+        };
+
+        // Upload sequentially to avoid browser/network contention
+        const urlItems = [];
+        for (const file of selectedImages) {
+          const u = await uploadOne(file);
+          urlItems.push(u);
+        }
+
+        // Ask backend to generate metadata from URLs
+        const genRes = await fetch(`${API_BASE_URL}/batch-metadata/generate-from-urls`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ items: urlItems })
         });
-        
-        const response = await clothingAPI.generateBatchMetadata(formData);
-        if (response.success) {
-          const allMetadata = response.data.successful.map(item => item.data);
+        const genJson = await genRes.json();
+        if (genRes.ok && genJson?.success) {
+          const allMetadata = (genJson.data.successful || []).map(item => item.data);
           setMetadata(allMetadata);
           // Auto-scroll to metadata section and show toast
           setTimeout(() => {
