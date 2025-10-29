@@ -422,7 +422,7 @@ const Dashboard = () => {
                 </button>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-                {clothingItems
+                {[...(clothingItems || [])]
                   .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
                   .slice(0, 6)
                   .map((item) => (
