@@ -516,6 +516,27 @@ const AddClothing = () => {
                   </div>
                 </div>
               )}
+
+              {isGeneratingMetadata && (
+                <div className="mt-4 p-4 bg-yellow-900/20 border border-yellow-500/30 rounded-lg">
+                  <div className="flex items-start space-x-3">
+                    <svg className="animate-spin h-5 w-5 text-yellow-400 mt-0.5" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                    </svg>
+                    <div>
+                      <div className="text-yellow-300 text-sm font-medium">Analyzing image with AI (~30s)</div>
+                      <div className="text-xs text-gray-300 mt-1">We're generating metadata in the background. You can keep this tab open; we'll notify you when it's ready.</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {metadata && !isGeneratingMetadata && (
+                <div className="mt-4 p-3 bg-green-900/20 border border-green-500/30 rounded-lg text-sm text-green-300">
+                  ✓ AI metadata generated. Review and make any edits below.
+                </div>
+              )}
               
               {metadataError && (
                 <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3">
