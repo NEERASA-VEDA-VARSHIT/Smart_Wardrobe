@@ -24,7 +24,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   
   // Local state for UI-specific data
-  const [todaysOutfit, setTodaysOutfit] = useState(null);
+  const [todaysOutfit, setTodaysOutfit] = useState(null); // legacy single outfit (to be removed)
   const [multiOutfits, setMultiOutfits] = useState([]); // 2-5 outfits from RAG
   const hasFetchedDataRef = useRef(false);
 
@@ -70,17 +70,11 @@ const Dashboard = () => {
         // Fetch all data in parallel using Redux-integrated API
         const promises = [
           reduxIntegratedAPI.weather.getWeatherRecommendations(user._id, lat, lon),
-          reduxIntegratedAPI.recommendations.getOutfitRecommendations({
-            userId: user._id,
-            query: "today's outfit",
-            occasion: "general",
-            timeOfDay: "day"
-          }),
           reduxIntegratedAPI.clothing.getClothingItems(user._id),
           reduxIntegratedAPI.laundry.getLaundryStats(user._id)
         ];
 
-        const [weatherData, outfitData, clothingData, laundryData] = await Promise.allSettled(promises);
+        const [weatherData, clothingData, laundryData] = await Promise.allSettled(promises);
 
         // Process weather data
         if (weatherData.status === 'fulfilled') {
@@ -88,10 +82,7 @@ const Dashboard = () => {
           console.log('Weather data loaded:', weatherData.value.data);
         }
 
-        // Process outfit recommendation
-        if (outfitData.status === 'fulfilled') {
-          setTodaysOutfit(outfitData.value.data);
-        }
+        // Skip legacy single outfit; use Gemini multi-outfits only
 
         // Process clothing data for stats
         if (clothingData.status === 'fulfilled') {
@@ -328,60 +319,7 @@ const Dashboard = () => {
           </motion.div>
 
           {/* Today's Outfit Suggestion */}
-          {todaysOutfit && (
-            <motion.div variants={itemVariants} className="mb-8">
-              <AnimatedCard className="bg-gradient-to-r from-gray-800 to-gray-700 p-8 rounded-xl border border-gray-600">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500">
-                    ✨ Today's AI Outfit Suggestion
-                  </h2>
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => window.location.reload()}
-                      className="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg text-sm transition-colors"
-                    >
-                      🔄 Regenerate
-                    </button>
-                    <button
-                      onClick={handleAcceptOutfit}
-                      className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm transition-colors"
-                    >
-                      ✅ Accept Outfit
-                    </button>
-                  </div>
-                </div>
-
-                {todaysOutfit.outfitSuggestion?.items && todaysOutfit.outfitSuggestion.items.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                    {todaysOutfit.outfitSuggestion.items.map((item, index) => (
-                      <div key={item._id} className="text-center">
-                        <img
-                          src={item.imageUrl || 'https://via.placeholder.com/200x200/374151/9CA3AF?text=No+Image'}
-                          alt={item.name}
-                          className="w-32 h-32 object-cover rounded-lg mx-auto mb-3"
-                          onError={(e) => {
-                            e.target.src = 'https://via.placeholder.com/200x200/374151/9CA3AF?text=No+Image';
-                          }}
-                        />
-                        <p className="text-sm font-medium">{item.name}</p>
-                        <p className="text-xs text-gray-400">{item.metadata?.category}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <p className="text-gray-400">No outfit suggestion available</p>
-                  </div>
-                )}
-
-                {todaysOutfit.outfitSuggestion?.text && (
-                  <div className="bg-black/30 rounded-lg p-4">
-                    <p className="text-gray-200 italic">"{todaysOutfit.outfitSuggestion.text}"</p>
-                  </div>
-                )}
-              </AnimatedCard>
-            </motion.div>
-          )}
+          {/* Legacy single outfit block removed; using Gemini-driven multi-outfits below */}
 
           {/* Quick Actions */}
           <motion.div variants={itemVariants} className="mb-8">
@@ -429,43 +367,16 @@ const Dashboard = () => {
             </div>
           </motion.div>
 
-          {/* Multi Outfit Recommendations */}
-          {multiOutfits && multiOutfits.length > 0 && (
-            <motion.div variants={itemVariants} className="mb-10">
-              <AnimatedCard className="bg-gradient-to-r from-gray-800 to-gray-700 p-8 rounded-xl border border-gray-600">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500">
-                    ✨ Recommended Outfits ({multiOutfits.length})
-                  </h2>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {multiOutfits.map((outfit, idx) => (
-                    <div key={idx} className="bg-black/30 rounded-lg p-4 border border-gray-600">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="text-lg font-semibold">Outfit {idx + 1}</div>
-                      </div>
-                      <div className="flex gap-3">
-                        {(outfit.items || []).slice(0,4).map((it, i) => (
-                          <img
-                            key={`${it.id}-${i}`}
-                            src={it.imageUrl || 'https://via.placeholder.com/96x96/374151/9CA3AF?text=No+Image'}
-                            alt={it.metadata?.subcategory || it.metadata?.category || 'item'}
-                            className="w-24 h-24 object-cover rounded-md border border-gray-700"
-                            onError={(e) => { e.target.src = 'https://via.placeholder.com/96x96/374151/9CA3AF?text=No+Image'; }}
-                          />
-                        ))}
-                      </div>
-                      {outfit.reasoning && (
-                        <div className="text-sm text-gray-300 mt-3">
-                          {outfit.reasoning}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </AnimatedCard>
-            </motion.div>
-          )}
+          {/* CTA to view full outfit recommendations page */}
+          <motion.div variants={itemVariants} className="mb-10">
+            <AnimatedCard className="bg-gradient-to-r from-gray-800 to-gray-700 p-6 rounded-xl border border-gray-600 flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500">✨ AI Recommended Outfits</h2>
+                <p className="text-gray-300 mt-1">See up to 4 Gemini-curated outfit cards from your wardrobe.</p>
+              </div>
+              <button onClick={() => navigate('/outfits')} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg">View Outfits</button>
+            </AnimatedCard>
+          </motion.div>
 
           {/* Recent Items */}
           {clothingItems && clothingItems.length > 0 && (

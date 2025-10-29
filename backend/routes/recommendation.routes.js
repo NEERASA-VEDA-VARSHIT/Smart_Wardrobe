@@ -9,7 +9,9 @@ import {
   provideFeedback,
   markAsWorn,
   recommendOutfitSets,
-  recommendAISuggestions
+  recommendAISuggestions,
+  acceptOutfitItems,
+  recommendHybrid
 } from '../controllers/recommendation.controllers.js';
 
 const recommendationRouter = express.Router();
@@ -28,6 +30,8 @@ recommendationRouter.post('/outfit/:userId', recommendationLimiter, recommendOut
  * Generate 2-5 visual outfit sets (RAG over wardrobe)
  */
 recommendationRouter.post('/outfits/:userId', recommendationLimiter, recommendOutfitSets);
+recommendationRouter.post('/outfits/:userId/accept', recommendationLimiter, acceptOutfitItems);
+recommendationRouter.post('/hybrid/:userId', recommendationLimiter, recommendHybrid);
 
 /**
  * POST /api/recommendations/ai-suggestions

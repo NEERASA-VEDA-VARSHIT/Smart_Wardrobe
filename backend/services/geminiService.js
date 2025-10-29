@@ -37,6 +37,89 @@ export const geminiModel = genAI.getGenerativeModel({
 });
 export const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
 
+// Robust JSON extractor for Gemini responses (handles code fences, stray text, CRLF)
+const extractJsonObject = (rawText) => {
+  if (!rawText) throw new Error('Empty response');
+  let text = String(rawText).trim();
+  
+  // Remove ```json ... ``` or ``` ... ``` blocks
+  const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence && fence[1]) text = fence[1].trim();
+  
+  // Remove all backticks
+  text = text.replace(/```/g, '').trim();
+  
+  // Remove markdown code indicators
+  text = text.replace(/^json\s*/i, '').trim();
+  
+  // Try to isolate the first JSON object
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start !== -1 && end !== -1 && end > start) {
+    text = text.slice(start, end + 1);
+  }
+  
+  // Aggressive JSON cleanup
+  // Remove trailing commas before } or ]
+  text = text.replace(/,(\s*[}\]])/g, '$1');
+  // Remove trailing commas after string values before ]
+  text = text.replace(/("(?:[^"\\]|\\.)*")\s*,\s*(\])/g, '$1$2');
+  // Fix unclosed strings in arrays
+  text = text.replace(/,(\s*"[^"]*$)/gm, '');
+  // Remove incomplete array elements
+  text = text.replace(/,\s*"[^"]*"[^"]*"\s*\]/g, ']');
+  // Fix double commas
+  text = text.replace(/,\s*,/g, ',');
+  // Remove commas after last array element
+  text = text.replace(/,\s*(\])/g, '$1');
+  // Remove commas before closing braces in objects
+  text = text.replace(/,\s*(\})/g, '$1');
+  
+  // Ensure ends with }
+  if (!text.trim().endsWith('}')) {
+    const lastBrace = text.lastIndexOf('}');
+    if (lastBrace !== -1) text = text.slice(0, lastBrace + 1);
+  }
+  
+  // Try parsing with error recovery
+  try {
+    return JSON.parse(text);
+  } catch (parseError) {
+    console.error('JSON parse error, attempting repair...', parseError.message);
+    console.error('Problematic text snippet:', text.substring(Math.max(0, parseError.message.match(/position (\d+)/)?.[1] - 50 || 0), 100));
+    
+    // Additional repair attempts
+    // Try to fix incomplete arrays
+    text = text.replace(/\[\s*("[^"]*")\s*,\s*$/, '[$1]');
+    // Remove malformed items array entries
+    text = text.replace(/("items"\s*:\s*\[[^\]]*),("[^"]*"),?\s*\]/g, '$1$2]');
+    
+    try {
+      return JSON.parse(text);
+    } catch (secondError) {
+      // Last resort: try to extract a minimal valid structure
+      const outfitsMatch = text.match(/"outfits"\s*:\s*\[([^\]]*)\]/);
+      if (outfitsMatch) {
+        const outfits = outfitsMatch[1].split(/},\s*\{/).map((o, i) => {
+          const titleMatch = o.match(/"title"\s*:\s*"([^"]*)"/);
+          const itemsMatch = o.match(/"items"\s*:\s*\[([^\]]*)\]/);
+          const reasoningMatch = o.match(/"reasoning"\s*:\s*"([^"]*)"/);
+          return {
+            title: titleMatch ? titleMatch[1] : `Outfit ${i + 1}`,
+            items: itemsMatch ? itemsMatch[1].match(/"([^"]+)"/g)?.map(s => s.slice(1, -1)) || [] : [],
+            reasoning: reasoningMatch ? reasoningMatch[1] : 'AI-generated outfit recommendation'
+          };
+        }).filter(o => o.items.length > 0);
+        
+        if (outfits.length > 0) {
+          return { summary: 'AI outfit recommendations', outfits };
+        }
+      }
+      throw parseError; // Re-throw original error if all fails
+    }
+  }
+};
+
 /**
  * Generate clothing metadata from image using Gemini Vision
  * @param {Buffer} imageBuffer - Image buffer
@@ -524,37 +607,152 @@ export const generateOutfitSets = async (items, context = {}) => {
       occasion: it.metadata?.occasion,
     }));
 
-    const prompt = `You are a stylist. From the provided wardrobe items, create between 2 and 5 complete outfits.
+    if (!compactItems || compactItems.length === 0) {
+      throw new Error('No items provided for outfit generation');
+    }
 
-Constraints:
+    // Pre-call diagnostic logging (do not log full prompt to avoid noise)
+    console.log('[OutfitSets] items:', compactItems.length, 'context:', {
+      occasion: context.occasion, timeOfDay: context.timeOfDay, weather: context.weather, temperature: context.temperature
+    });
+    console.log('[OutfitSets] sample item ids:', compactItems.slice(0, 5).map(i => i.id));
+
+    const prompt = `You are a professional stylist. Your task is to create MULTIPLE outfit combinations from the user's wardrobe.
+
+REQUIREMENTS:
+- You MUST generate AT LEAST 3 different outfit combinations (preferably 3-4 outfits)
+- Each outfit must use DIFFERENT items from the wardrobe (vary the combinations)
+- Each outfit should have: 1 top + 1 bottom + optional shoes/accessories
 - Match weather: ${context.weather || 'moderate'} and temperature: ${context.temperature ?? 'moderate'}
 - Occasion: ${context.occasion || 'casual'}; Time: ${context.timeOfDay || 'day'}
-- Use only provided item IDs. Prefer one top, one bottom, shoes; optionally outerwear/accessories.
+- Use ONLY the item IDs provided below - DO NOT make up IDs
 
-Wardrobe Items (JSON): ${JSON.stringify(compactItems).slice(0, 12000)}
+Wardrobe Items (${compactItems.length} items available):
+${JSON.stringify(compactItems).slice(0, 12000)}
 
-Return ONLY JSON in this schema:
+CRITICAL: You MUST return 3-4 different outfits in the outfits array. Each outfit should use different item combinations to give variety.
+
+Return ONLY valid JSON, no markdown, no code blocks, no extra text. Exact schema:
 {
+  "summary": "Brief overall recommendation (1-2 sentences)",
   "outfits": [
     {
-      "title": "string",
-      "items": ["id1","id2","id3"],
-      "reasoning": "why this works for weather/occasion"
+      "title": "Outfit name (e.g., 'Casual Weekend', 'Smart Casual', 'Relaxed Style')",
+      "items": ["item_id_1", "item_id_2", "item_id_3"],
+      "reasoning": "Why this specific combination works (1-2 sentences)"
+    },
+    {
+      "title": "Different outfit name",
+      "items": ["item_id_4", "item_id_5"],
+      "reasoning": "Why this combination works"
+    },
+    {
+      "title": "Another different outfit name",
+      "items": ["item_id_6", "item_id_7"],
+      "reasoning": "Why this combination works"
     }
   ]
-}`;
+}
 
-    const result = await geminiModel.generateContent(prompt);
-    const text = (await result.response).text();
-    let json = text;
-    const match = text.match(/```json\n([\s\S]*?)\n```/);
-    if (match) json = match[1];
-    const data = JSON.parse(json);
-    if (!Array.isArray(data.outfits)) throw new Error('Invalid schema');
-    return { success: true, data };
+REMEMBER: You MUST generate at least 3 outfits in the array. Use different item combinations for variety.`;
+
+    // Add timeout wrapper for Gemini API call
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Gemini API timeout after 30 seconds')), 30000);
+    });
+
+    let result, text;
+    try {
+      console.log('[OutfitSets] prompt length:', prompt.length);
+      const geminiPromise = geminiModel.generateContent(prompt);
+      result = await Promise.race([geminiPromise, timeoutPromise]);
+      text = (await result.response).text();
+      
+      if (!text || text.trim().length === 0) {
+        throw new Error('Empty response from Gemini API');
+      }
+      
+      // Log raw response for debugging (first 500 chars)
+      console.log('Gemini raw response (first 500 chars):', text.substring(0, 500));
+    } catch (apiError) {
+      console.error('Gemini API call failed:', apiError.message);
+      throw new Error(`AI service unavailable: ${apiError.message}`);
+    }
+    
+    let data;
+    try {
+      data = extractJsonObject(text);
+      if (!data || typeof data !== 'object') throw new Error('Invalid response structure');
+      if (!Array.isArray(data.outfits)) throw new Error('Outfits must be an array');
+      if (data.outfits.length === 0) throw new Error('No outfits generated');
+      
+      // Validate we got at least 3 outfits
+      if (data.outfits.length < 3 && compactItems.length >= 6) {
+        console.warn(`Only got ${data.outfits.length} outfit(s), expected at least 3. Available items: ${compactItems.length}`);
+        // Try to generate additional outfit variations from remaining items
+        const usedItemIds = new Set();
+        data.outfits.forEach(o => {
+          (o.items || []).forEach(id => usedItemIds.add(String(id)));
+        });
+        
+        const unusedItems = compactItems.filter(item => !usedItemIds.has(String(item.id)));
+        if (unusedItems.length >= 4 && data.outfits.length < 3) {
+          console.log(`Attempting to generate ${3 - data.outfits.length} additional outfit(s) from unused items`);
+          // Add a simple outfit variation using unused items
+          const topItems = unusedItems.filter(i => ['top', 'shirt', 't-shirt', 'tee', 'blouse'].some(c => 
+            (i.type || i.category || '').toLowerCase().includes(c)
+          ));
+          const bottomItems = unusedItems.filter(i => ['bottom', 'pants', 'jeans', 'trouser', 'shorts'].some(c => 
+            (i.type || i.category || '').toLowerCase().includes(c)
+          ));
+          
+          while (data.outfits.length < 3 && topItems.length > 0 && bottomItems.length > 0) {
+            const top = topItems.pop();
+            const bottom = bottomItems.pop();
+            if (top && bottom) {
+              data.outfits.push({
+                title: `Style Variation ${data.outfits.length + 1}`,
+                items: [top.id, bottom.id],
+                reasoning: `A fresh combination of ${top.type || top.category} and ${bottom.type || bottom.category} for ${context.occasion || 'casual'} occasions.`
+              });
+            }
+          }
+        }
+      }
+    } catch (parseError) {
+      console.error('Failed to parse Gemini response:', parseError.message);
+      console.error('Full response length:', text.length);
+      console.error('Response preview:', text.substring(0, 200));
+      
+      // Try to salvage at least one outfit from partial response
+      const titleMatch = text.match(/"title"\s*:\s*"([^"]*)"/);
+      const itemsMatch = text.match(/"items"\s*:\s*\[([^\]]*)\]/);
+      
+      if (titleMatch && itemsMatch) {
+        const salvagedItems = itemsMatch[1].match(/"([^"]+)"/g)?.map(s => s.slice(1, -1)) || [];
+        if (salvagedItems.length >= 2) {
+          console.log('Salvaged partial outfit from malformed JSON');
+          data = {
+            summary: 'AI-generated outfit recommendation',
+            outfits: [{
+              title: titleMatch[1],
+              items: salvagedItems,
+              reasoning: 'AI-generated outfit combination'
+            }]
+          };
+        } else {
+          throw new Error(`Failed to parse AI response: ${parseError.message}`);
+        }
+      } else {
+        throw new Error(`Failed to parse AI response: ${parseError.message}`);
+      }
+    }
+    
+    return { success: true, data: { summary: data.summary || '', outfits: data.outfits } };
   } catch (error) {
-    console.error('generateOutfitSets error:', error);
-    return { success: false, error: error.message };
+    console.error('generateOutfitSets error:', error.message);
+    console.error('Stack:', error.stack);
+    return { success: false, error: error.message || 'Unknown error in outfit generation' };
   }
 };
 
@@ -564,7 +762,7 @@ Return ONLY JSON in this schema:
  */
 export const generateAISuggestions = async (context = {}) => {
   try {
-    const prompt = `You are a fashion stylist. Create between 2 and 3 complete outfit suggestions for the following context.
+    const prompt = `You are a professional fashion stylist. Create between 2 and 3 complete outfit suggestions for the following context.
 
 Context:
 - Weather: ${context.weather || 'moderate'}
@@ -574,38 +772,95 @@ Context:
 - Style: ${context.style || 'modern minimal'}
 - Region: ${context.region || 'India'}
 
+REQUIREMENT: You MUST generate at least 2-3 different outfit suggestions. Each outfit should be unique.
+
 For each outfit, return STRICT JSON with:
-- title: short name
+- title: short descriptive name (e.g., "Casual Weekend Look", "Smart Office Style")
 - items: array of clothing piece names (top, bottom, shoes, optional outerwear/accessories)
-- reasoning: brief why it fits weather/occasion
-- image_prompt: a realistic flat-lay prompt to generate an image of the outfit
-- curated: array of up to 3 shopping links { label, url }
+- reasoning: brief explanation why it fits the weather/occasion (1-2 sentences)
+- image_prompt: a detailed realistic flat-lay prompt for generating an image (describe colors, fabrics, style)
+- curated: array of up to 3 shopping links with label and url
 
-Only JSON, no extra text. Schema:
-{"outfits":[{"title":"","items":[""],"reasoning":"","image_prompt":"","curated":[{"label":"","url":""}]}]}`;
+Return ONLY valid JSON, no markdown, no code blocks. Exact schema:
+{
+  "outfits": [
+    {
+      "title": "Outfit name",
+      "items": ["Top name", "Bottom name", "Shoes name"],
+      "reasoning": "Why this works",
+      "image_prompt": "Detailed description for image generation",
+      "curated": [
+        {"label": "Store name", "url": "https://store.com/outfit"}
+      ]
+    },
+    {
+      "title": "Different outfit name",
+      "items": ["Different top", "Different bottom", "Different shoes"],
+      "reasoning": "Why this works",
+      "image_prompt": "Detailed description",
+      "curated": [
+        {"label": "Store name", "url": "https://store.com/outfit"}
+      ]
+    }
+  ]
+}`;
 
-    const result = await geminiModel.generateContent(prompt);
-    const text = (await result.response).text();
-    let json = text;
-    const match = text.match(/```json\n([\s\S]*?)\n```/);
-    if (match) json = match[1];
-    const data = JSON.parse(json);
-    if (!Array.isArray(data.outfits)) throw new Error('Invalid schema');
+    // Add timeout wrapper for Gemini API call
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Gemini API timeout after 30 seconds')), 30000);
+    });
+
+    let result, text;
+    try {
+      const geminiPromise = geminiModel.generateContent(prompt);
+      result = await Promise.race([geminiPromise, timeoutPromise]);
+      text = (await result.response).text();
+      
+      if (!text || text.trim().length === 0) {
+        throw new Error('Empty response from Gemini API');
+      }
+      
+      console.log('AI suggestions raw response (first 300 chars):', text.substring(0, 300));
+    } catch (apiError) {
+      console.error('Gemini API call failed:', apiError.message);
+      throw new Error(`AI service unavailable: ${apiError.message}`);
+    }
+
+    let data;
+    try {
+      data = extractJsonObject(text);
+      if (!data || typeof data !== 'object') throw new Error('Invalid response structure');
+      if (!Array.isArray(data.outfits)) throw new Error('Outfits must be an array');
+      if (data.outfits.length === 0) throw new Error('No outfits generated');
+      
+      // Ensure we have at least 2 outfits
+      if (data.outfits.length < 2) {
+        console.warn(`Only got ${data.outfits.length} outfit(s), expected at least 2`);
+      }
+    } catch (parseError) {
+      console.error('Failed to parse AI suggestions response:', parseError.message);
+      console.error('Response preview:', text.substring(0, 300));
+      throw new Error(`Failed to parse AI response: ${parseError.message}`);
+    }
 
     // Best-effort curated links if missing
-    const withLinks = data.outfits.map(o => ({
-      ...o,
-      curated: (o.curated && o.curated.length ? o.curated : [
+    const withLinks = data.outfits.slice(0, 3).map(o => ({
+      title: o.title || 'AI Suggested Outfit',
+      items: o.items || [],
+      reasoning: o.reasoning || 'AI-generated outfit recommendation',
+      image_prompt: o.image_prompt || `A ${context.occasion || 'casual'} outfit suitable for ${context.weather || 'moderate'} weather`,
+      curated: (o.curated && Array.isArray(o.curated) && o.curated.length ? o.curated : [
         { label: 'Myntra - Similar Styles', url: 'https://www.myntra.com/men-clothing' },
         { label: 'AJIO - Shop the look', url: 'https://www.ajio.com/men' },
         { label: 'Amazon Fashion', url: 'https://www.amazon.in/s?k=men+outfit' }
       ])
-    })).slice(0, 3);
+    }));
 
     return { success: true, data: { outfits: withLinks } };
   } catch (error) {
-    console.error('generateAISuggestions error:', error);
-    return { success: false, error: error.message };
+    console.error('generateAISuggestions error:', error.message);
+    console.error('Stack:', error.stack);
+    return { success: false, error: error.message || 'Unknown error in AI suggestions generation' };
   }
 };
 

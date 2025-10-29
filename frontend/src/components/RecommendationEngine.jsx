@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { selectUser } from "../redux/userSlice";
 import { motion, AnimatePresence } from "framer-motion";
@@ -6,20 +6,47 @@ import LoadingSpinner from "./LoadingSpinner";
 import AnimatedCard from "./AnimatedCard";
 import FeedbackButtons from "./FeedbackButtons";
 import WeatherWidget from "./WeatherWidget";
+import OutfitCard from "./OutfitCard";
+import { API_BASE_URL } from "../api/config";
+import { useLocation } from "react-router-dom";
 
 export default function RecommendationEngine() {
   const user = useSelector(selectUser);
+  const location = useLocation();
   const [query, setQuery] = useState("");
-  const [occasion, setOccasion] = useState("");
-  const [weather, setWeather] = useState("");
-  const [season, setSeason] = useState("");
-  const [formality, setFormality] = useState("");
+  const [occasion, setOccasion] = useState(location.state?.filters?.occasion || "");
+  const [weather, setWeather] = useState(location.state?.filters?.weather || "");
+  const [season, setSeason] = useState(location.state?.filters?.season || "");
+  const [formality, setFormality] = useState(location.state?.filters?.formality || "");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [feedback, setFeedback] = useState({});
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
   const [weatherData, setWeatherData] = useState(null);
+  const [outfits, setOutfits] = useState([]);
+  const [outfitSummary, setOutfitSummary] = useState("");
+  const [mode, setMode] = useState('wardrobe'); // 'wardrobe' | 'ai' | 'mix'
+
+  // Clear previous outputs when mode changes
+  useEffect(() => {
+    setResult(null);
+    setOutfits([]);
+    setOutfitSummary("");
+    setError(null);
+  }, [mode]);
+
+  // Auto-trigger recommendations when coming from wardrobe with filters
+  useEffect(() => {
+    if (location.state?.filters && user?._id) {
+      // Small delay to ensure state is ready
+      const timer = setTimeout(() => {
+        runRecommendation();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const runRecommendation = async () => {
     if (!user?._id) {
@@ -32,6 +59,7 @@ export default function RecommendationEngine() {
     setResult(null);
     
     try {
+      // Always get base text recommendation (legacy) for reasoning context
       const response = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : 'https://smart-wardrobe-backend.vercel.app/api')}/recommendations/outfit/${user._id}`, {
         method: "POST",
         headers: {
@@ -63,6 +91,44 @@ export default function RecommendationEngine() {
       }
 
       setResult(data.data);
+
+      // Mode-based fetching
+      if (mode === 'wardrobe') {
+        try {
+          const resOut = await fetch(`${API_BASE_URL}/recommendations/outfits/${user._id}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+            body: JSON.stringify({ occasion: occasion || 'casual', timeOfDay: 'day', weather: weather || undefined, temperature: weatherData?.temperature })
+          });
+          const jsonOut = await resOut.json();
+          if (resOut.ok && jsonOut?.success) { setOutfitSummary(jsonOut.data?.summary || ""); setOutfits((jsonOut.data?.outfits || []).slice(0, 4)); } else { setOutfits([]); setOutfitSummary(""); }
+        } catch { setOutfits([]); setOutfitSummary(""); }
+      } else if (mode === 'ai') {
+        try {
+          const resAi = await fetch(`${API_BASE_URL}/recommendations/ai-suggestions`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+            body: JSON.stringify({ occasion: occasion || 'casual', timeOfDay: 'day', weather: weather || undefined })
+          });
+          const jsonAi = await resAi.json();
+          if (resAi.ok && jsonAi?.success) {
+            // Map AI suggestions into displayable pseudo-outfit cards (no images)
+            const aiCards = (jsonAi.data?.outfits || []).slice(0,4).map(o => ({ title: o.title, reasoning: o.reasoning, items: [] , ai: o }));
+            setOutfits(aiCards);
+            setOutfitSummary('AI stylist suggestions');
+          } else { setOutfits([]); setOutfitSummary(""); }
+        } catch { setOutfits([]); setOutfitSummary(""); }
+      } else if (mode === 'mix') {
+        try {
+          const resHybrid = await fetch(`${API_BASE_URL}/recommendations/hybrid/${user._id}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+            body: JSON.stringify({ occasion: occasion || 'casual', timeOfDay: 'day', weather: weather || undefined })
+          });
+          const jsonHybrid = await resHybrid.json();
+          if (resHybrid.ok && jsonHybrid?.success) {
+            setOutfitSummary(jsonHybrid.data?.wardrobe?.summary || '');
+            setOutfits((jsonHybrid.data?.wardrobe?.outfits || []).slice(0,4));
+          } else { setOutfits([]); setOutfitSummary(""); }
+        } catch { setOutfits([]); setOutfitSummary(""); }
+      }
     } catch (err) {
       console.error("Recommendation error:", err);
       setError(err.message || "Failed to get recommendation");
@@ -177,6 +243,17 @@ export default function RecommendationEngine() {
         />
       </motion.div>
 
+      {/* Mode Tabs */}
+      <div className="flex gap-2 mb-4">
+        {[
+          { id: 'wardrobe', label: '👕 My Wardrobe' },
+          { id: 'ai', label: '🤖 AI Suggestions' },
+          { id: 'mix', label: '⚡ Mix Both' }
+        ].map(tab => (
+          <button key={tab.id} onClick={()=>setMode(tab.id)} className={`px-3 py-1 rounded ${mode===tab.id?'bg-blue-600 text-white':'bg-gray-700 text-gray-200'}`}>{tab.label}</button>
+        ))}
+      </div>
+
       {/* Input Form */}
       <motion.div 
         className="space-y-4 mb-6"
@@ -256,7 +333,38 @@ export default function RecommendationEngine() {
         )}
       </AnimatePresence>
 
-      {/* Results Display */}
+      {/* Outfit Cards - Show FIRST if available (priority) */}
+      {(outfits && outfits.length > 0) && (
+        <AnimatedCard className="bg-gradient-to-r from-purple-900/40 to-blue-900/40 border border-purple-500 p-6 mb-6">
+          <h4 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
+            ✨ Recommended Outfits ({outfits.length})
+          </h4>
+          {outfitSummary && (
+            <div className="text-gray-200 mb-6 p-3 bg-gray-800/50 rounded-lg">
+              {outfitSummary}
+            </div>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+            {outfits.map((o, i) => (
+              <OutfitCard key={i} outfit={{ ...o, title: o.title || `Recommended Outfit ${i + 1}` }} onAccept={async (ids)=>{
+                try {
+                  if (!ids?.length) return;
+                  const res = await fetch(`${API_BASE_URL}/recommendations/outfits/${user._id}/accept`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ itemIds: ids })
+                  });
+                  if (!res.ok) throw new Error('Failed');
+                  alert('✅ Outfit marked as worn');
+                } catch(e) { alert('❌ Failed to mark as worn'); }
+              }} onRegenerate={runRecommendation} />
+            ))}
+          </div>
+        </AnimatedCard>
+      )}
+
+      {/* Results Display (legacy text reasoning) */}
       <AnimatePresence>
         {result && (
           <motion.div 
@@ -320,14 +428,15 @@ export default function RecommendationEngine() {
               </AnimatedCard>
             )}
 
-            {/* Recommended Items with Animations */}
-            <div>
-              <motion.h4 
-                className="text-lg font-semibold text-white mb-4"
-                variants={itemVariants}
-              >
-                👕 Recommended Items ({result.totalItems} found)
-              </motion.h4>
+            {/* Only show individual items if NO outfits are available */}
+            {(!outfits || outfits.length === 0) && (
+              <div>
+                <motion.h4 
+                  className="text-lg font-semibold text-white mb-4"
+                  variants={itemVariants}
+                >
+                  👕 Recommended Items ({result.totalItems || 0} found)
+                </motion.h4>
               
               {/* Items by Category */}
               {Object.entries(result.itemsByCategory || {}).map(([category, items], categoryIndex) => (
@@ -391,9 +500,11 @@ export default function RecommendationEngine() {
                   </div>
                 </motion.div>
               ))}
-            </div>
+              </div>
+            )}
 
-            {/* Enhanced Action Buttons */}
+            {/* Enhanced Action Buttons - Only show for legacy items */}
+            {(!outfits || outfits.length === 0) && (
             <motion.div 
               className="space-y-4 pt-6 border-t border-gray-600"
               variants={itemVariants}
@@ -431,6 +542,7 @@ export default function RecommendationEngine() {
                 <span>Close</span>
               </motion.button>
             </motion.div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

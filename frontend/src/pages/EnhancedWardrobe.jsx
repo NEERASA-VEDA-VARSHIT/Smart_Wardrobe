@@ -6,6 +6,7 @@ import AnimatedCard from '../components/AnimatedCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { clothingAPI, laundryAPI } from '../api';
+import { API_BASE_URL } from '../api/config';
 
 const EnhancedWardrobe = () => {
   const user = useSelector(selectUser);
@@ -20,15 +21,66 @@ const EnhancedWardrobe = () => {
   const [selectedItems, setSelectedItems] = useState([]);
   const [showFilters, setShowFilters] = useState(false);
   
+  const [showItemDetails, setShowItemDetails] = useState(null);
+  
   // Filter states
   const [filters, setFilters] = useState({
     category: '',
     color: '',
     season: '',
     formality: '',
+    weather: '',
     cleanlinessStatus: '',
     search: searchParams.get('search') || ''
   });
+
+  // Group items by category
+  const groupedItems = filteredItems.reduce((acc, item) => {
+    const category = item.metadata?.category || item.metadata?.subcategory || 'other';
+    const categoryKey = category.toLowerCase();
+    if (!acc[categoryKey]) {
+      acc[categoryKey] = [];
+    }
+    acc[categoryKey].push(item);
+    return acc;
+  }, {});
+
+  const categoryIcons = {
+    top: '👕',
+    bottom: '👖',
+    outerwear: '🧥',
+    shoes: '👟',
+    accessories: '🎒',
+    dress: '👗',
+    other: '👔'
+  };
+
+  const categoryLabels = {
+    top: 'Tops',
+    bottom: 'Bottoms',
+    outerwear: 'Outerwear',
+    shoes: 'Footwear',
+    accessories: 'Accessories',
+    dress: 'Dresses',
+    other: 'Other'
+  };
+
+  const handleSendToAI = () => {
+    if (filteredItems.length < 2) {
+      alert('Please add at least 2 items to your wardrobe to generate outfit recommendations');
+      return;
+    }
+    // Navigate to recommendations with current filters
+    navigate('/recommendations', { 
+      state: { 
+        filters: {
+          occasion: filters.formality || 'casual',
+          weather: filters.weather || 'moderate',
+          season: filters.season || 'all-season'
+        }
+      } 
+    });
+  };
 
   // Handle action=add parameter
   useEffect(() => {
@@ -99,6 +151,27 @@ const EnhancedWardrobe = () => {
       filtered = filtered.filter(item => item.metadata?.formality === filters.formality);
     }
 
+    // Weather filter
+    if (filters.weather) {
+      const weatherFilter = filters.weather.toLowerCase();
+      filtered = filtered.filter(item => {
+        const season = (item.metadata?.season || '').toLowerCase();
+        // Hot/Warm weather: prefer summer, all-season items
+        if (['hot', 'warm'].includes(weatherFilter)) {
+          return season === 'summer' || season === 'all-season' || !season;
+        }
+        // Cool/Cold weather: prefer winter, autumn, all-season items
+        if (['cool', 'cold'].includes(weatherFilter)) {
+          return season === 'winter' || season === 'autumn' || season === 'all-season' || !season;
+        }
+        // Rainy: prefer items suitable for rain (any season is fine)
+        if (weatherFilter === 'rainy') {
+          return true; // All items can potentially work with rain accessories
+        }
+        return true; // Moderate weather accepts all
+      });
+    }
+
     // Cleanliness status filter
     if (filters.cleanlinessStatus) {
       filtered = filtered.filter(item => item.cleanlinessStatus === filters.cleanlinessStatus);
@@ -117,9 +190,32 @@ const EnhancedWardrobe = () => {
       color: '',
       season: '',
       formality: '',
+      weather: '',
       cleanlinessStatus: '',
       search: ''
     });
+  };
+
+  const handleMarkAsWorn = async (itemId, e) => {
+    e.stopPropagation();
+    try {
+      const res = await fetch(`${API_BASE_URL}/recommendations/outfits/${user._id}/accept`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ itemIds: [itemId] })
+      });
+      if (res.ok) {
+        // Refresh items
+        const result = await clothingAPI.getClothingItems(user._id);
+        setClothingItems(result.data);
+        setFilteredItems(result.data);
+        alert('✅ Item marked as worn!');
+      }
+    } catch (err) {
+      console.error('Error marking as worn:', err);
+      alert('❌ Failed to mark as worn');
+    }
   };
 
   const handleItemSelect = (itemId) => {
@@ -255,6 +351,16 @@ const EnhancedWardrobe = () => {
           </div>
           
           <div className="flex items-center space-x-4 mt-4 sm:mt-0">
+            {filteredItems.length >= 2 && (
+              <motion.button
+                onClick={handleSendToAI}
+                className="bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-600 hover:to-orange-700 px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-2"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                🧠 Send to AI
+              </motion.button>
+            )}
             <motion.button
               onClick={() => navigate('/wardrobe?action=add')}
               className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 px-6 py-3 rounded-lg font-medium transition-all duration-200"
@@ -324,7 +430,7 @@ const EnhancedWardrobe = () => {
           <AnimatePresence>
             {showFilters && (
               <motion.div
-                className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4"
+                className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4"
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
@@ -387,6 +493,20 @@ const EnhancedWardrobe = () => {
                 </select>
 
                 <select
+                  value={filters.weather}
+                  onChange={(e) => handleFilterChange('weather', e.target.value)}
+                  className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-400"
+                >
+                  <option value="">All Weather</option>
+                  <option value="hot">Hot</option>
+                  <option value="warm">Warm</option>
+                  <option value="moderate">Moderate</option>
+                  <option value="cool">Cool</option>
+                  <option value="cold">Cold</option>
+                  <option value="rainy">Rainy</option>
+                </select>
+
+                <select
                   value={filters.cleanlinessStatus}
                   onChange={(e) => handleFilterChange('cleanlinessStatus', e.target.value)}
                   className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-400"
@@ -443,89 +563,141 @@ const EnhancedWardrobe = () => {
           </motion.div>
         )}
 
-        {/* Clothing Items */}
+        {/* Clothing Items by Category */}
         {filteredItems.length > 0 ? (
-          <motion.div
-            className={viewMode === 'grid' 
-              ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6'
-              : 'space-y-4'
-            }
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-          >
-            <AnimatePresence>
-              {filteredItems.map((item) => (
-                <AnimatedCard
-                  key={item._id}
-                  variants={itemVariants}
-                  className={`relative bg-gray-800 rounded-xl shadow-lg overflow-hidden cursor-pointer transition-all duration-300 ${
-                    selectedItems.includes(item._id)
-                      ? 'ring-2 ring-blue-500 bg-blue-900/20'
-                      : 'hover:bg-gray-700'
-                  }`}
-                  onClick={() => handleItemSelect(item._id)}
-                >
-                  {/* Selection Indicator */}
-                  {selectedItems.includes(item._id) && (
-                    <div className="absolute top-2 right-2 bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm z-10">
-                      ✓
-                    </div>
-                  )}
+          <div className="space-y-8">
+            {Object.entries(groupedItems).map(([category, items]) => (
+              <motion.div
+                key={category}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="bg-gray-800/50 rounded-xl p-6"
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="text-3xl">{categoryIcons[category] || categoryIcons.other}</span>
+                  <h2 className="text-2xl font-bold">
+                    {categoryLabels[category] || category} ({items.length} items)
+                  </h2>
+                </div>
+                
+                <div className={viewMode === 'grid' 
+                  ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4'
+                  : 'space-y-4'
+                }>
+                  {items.map((item) => (
+                    <AnimatedCard
+                      key={item._id}
+                      variants={itemVariants}
+                      className={`relative bg-gray-900 rounded-xl shadow-lg overflow-hidden transition-all duration-300 ${
+                        selectedItems.includes(item._id)
+                          ? 'ring-2 ring-blue-500 bg-blue-900/20'
+                          : 'hover:bg-gray-700 hover:scale-105'
+                      }`}
+                      onClick={() => handleItemSelect(item._id)}
+                    >
+                      {/* Selection Indicator */}
+                      {selectedItems.includes(item._id) && (
+                        <div className="absolute top-2 right-2 bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm z-10">
+                          ✓
+                        </div>
+                      )}
 
-                  {/* Cleanliness Status */}
-                  <div className="absolute top-2 left-2">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getCleanlinessColor(item.cleanlinessStatus)} text-white`}>
-                      {getCleanlinessText(item.cleanlinessStatus)}
-                    </span>
-                  </div>
-
-                  {/* Item Image */}
-                  <div className="aspect-square">
-                    <img
-                      src={item.imageUrl || 'https://via.placeholder.com/300x300/374151/9CA3AF?text=No+Image'}
-                      alt={item.name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.target.src = 'https://via.placeholder.com/300x300/374151/9CA3AF?text=No+Image';
-                      }}
-                    />
-                  </div>
-
-                  {/* Item Details */}
-                  <div className="p-4">
-                    <h3 className="text-lg font-semibold mb-1 line-clamp-1">
-                      {item.name}
-                    </h3>
-                    <p className="text-sm text-gray-400 mb-2 line-clamp-2">
-                      {item.metadata?.description || 'No description available'}
-                    </p>
-                    
-                    <div className="flex flex-wrap gap-1 mb-3">
-                      {item.metadata?.category && (
-                        <span className="px-2 py-1 bg-gray-700 text-xs rounded">
-                          {item.metadata.category}
+                      {/* Cleanliness Status */}
+                      <div className="absolute top-2 left-2 z-10">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getCleanlinessColor(item.cleanlinessStatus)} text-white`}>
+                          {getCleanlinessText(item.cleanlinessStatus)}
                         </span>
-                      )}
-                      {item.metadata?.color?.primary && (
-                        <span className="px-2 py-1 bg-gray-700 text-xs rounded">
-                          {item.metadata.color.primary}
-                        </span>
-                      )}
-                    </div>
+                      </div>
 
-                    {/* Wear Stats */}
-                    <div className="flex justify-between text-xs text-gray-500">
-                      <span>Worn: {item.wearCount || 0} times</span>
-                      {item.lastWorn && (
-                        <span>Last: {new Date(item.lastWorn).toLocaleDateString()}</span>
-                      )}
-                    </div>
-                  </div>
-                </AnimatedCard>
-              ))}
-            </AnimatePresence>
-          </motion.div>
+                      {/* Item Image */}
+                      <div className="aspect-square relative">
+                        <img
+                          src={item.imageUrl || 'https://via.placeholder.com/300x300/374151/9CA3AF?text=No+Image'}
+                          alt={item.name || item.metadata?.description}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.src = 'https://via.placeholder.com/300x300/374151/9CA3AF?text=No+Image';
+                          }}
+                        />
+                        {/* Color Badge */}
+                        {item.metadata?.color?.primary && (
+                          <div className="absolute bottom-2 right-2">
+                            <span className="px-2 py-1 bg-black/70 text-white text-xs rounded-full">
+                              {item.metadata.color.primary}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Item Details */}
+                      <div className="p-4">
+                        <h3 className="text-base font-semibold mb-1 line-clamp-1">
+                          {item.name || item.metadata?.description || 'Clothing Item'}
+                        </h3>
+                        
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {item.metadata?.subcategory && (
+                            <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 text-xs rounded">
+                              {item.metadata.subcategory}
+                            </span>
+                          )}
+                          {item.metadata?.fabric && (
+                            <span className="px-2 py-0.5 bg-purple-500/20 text-purple-300 text-xs rounded">
+                              {item.metadata.fabric}
+                            </span>
+                          )}
+                          {item.metadata?.season && (
+                            <span className="px-2 py-0.5 bg-green-500/20 text-green-300 text-xs rounded">
+                              {item.metadata.season}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Metadata Row */}
+                        <div className="flex flex-wrap gap-1 mb-2 text-xs text-gray-400">
+                          {item.metadata?.formality && (
+                            <span>• {item.metadata.formality}</span>
+                          )}
+                          {item.metadata?.occasion && Array.isArray(item.metadata.occasion) && item.metadata.occasion.length > 0 && (
+                            <span>• {item.metadata.occasion[0]}</span>
+                          )}
+                        </div>
+
+                        {/* Wear Stats & Actions */}
+                        <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-700">
+                          <div className="text-xs text-gray-500">
+                            {item.lastWorn ? (
+                              <span>Last worn: {new Date(item.lastWorn).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                            ) : (
+                              <span>Never worn</span>
+                            )}
+                          </div>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowItemDetails(item);
+                              }}
+                              className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs transition-colors"
+                            >
+                              👁️
+                            </button>
+                            <button
+                              onClick={(e) => handleMarkAsWorn(item._id, e)}
+                              className="px-2 py-1 bg-green-600 hover:bg-green-700 rounded text-xs transition-colors"
+                            >
+                              🧾
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </AnimatedCard>
+                  ))}
+                </div>
+              </motion.div>
+            ))}
+          </div>
         ) : (
           <motion.div
             className="text-center py-16"
@@ -554,6 +726,140 @@ const EnhancedWardrobe = () => {
             )}
           </motion.div>
         )}
+
+        {/* Item Details Modal */}
+        <AnimatePresence>
+          {showItemDetails && (
+            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setShowItemDetails(null)}>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="bg-gray-900 border border-gray-700 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="sticky top-0 bg-gray-900 border-b border-gray-700 p-4 flex justify-between items-center">
+                  <h3 className="text-xl font-bold">Item Details</h3>
+                  <button
+                    onClick={() => setShowItemDetails(null)}
+                    className="text-gray-400 hover:text-white text-2xl"
+                  >
+                    ×
+                  </button>
+                </div>
+                
+                <div className="p-6">
+                  <div className="grid md:grid-cols-2 gap-6">
+                    {/* Image */}
+                    <div>
+                      <img
+                        src={showItemDetails.imageUrl || 'https://via.placeholder.com/400x400/374151/9CA3AF?text=No+Image'}
+                        alt={showItemDetails.name || 'Clothing Item'}
+                        className="w-full rounded-lg object-cover"
+                        onError={(e) => {
+                          e.target.src = 'https://via.placeholder.com/400x400/374151/9CA3AF?text=No+Image';
+                        }}
+                      />
+                    </div>
+                    
+                    {/* Details */}
+                    <div className="space-y-4">
+                      <div>
+                        <h4 className="text-2xl font-bold mb-2">
+                          {showItemDetails.name || showItemDetails.metadata?.description || 'Clothing Item'}
+                        </h4>
+                        <p className="text-gray-400">
+                          {showItemDetails.metadata?.description || 'No description available'}
+                        </p>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <span className="text-sm text-gray-500">Category</span>
+                          <p className="font-medium">{showItemDetails.metadata?.category || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <span className="text-sm text-gray-500">Subcategory</span>
+                          <p className="font-medium">{showItemDetails.metadata?.subcategory || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <span className="text-sm text-gray-500">Color</span>
+                          <p className="font-medium">{showItemDetails.metadata?.color?.primary || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <span className="text-sm text-gray-500">Fabric</span>
+                          <p className="font-medium">{showItemDetails.metadata?.fabric || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <span className="text-sm text-gray-500">Season</span>
+                          <p className="font-medium">{showItemDetails.metadata?.season || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <span className="text-sm text-gray-500">Formality</span>
+                          <p className="font-medium">{showItemDetails.metadata?.formality || 'N/A'}</p>
+                        </div>
+                      </div>
+                      
+                      {showItemDetails.metadata?.occasion && Array.isArray(showItemDetails.metadata.occasion) && showItemDetails.metadata.occasion.length > 0 && (
+                        <div>
+                          <span className="text-sm text-gray-500">Occasions</span>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {showItemDetails.metadata.occasion.map((occ, i) => (
+                              <span key={i} className="px-2 py-1 bg-blue-500/20 text-blue-300 rounded text-sm">
+                                {occ}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div className="pt-4 border-t border-gray-700">
+                        <div className="flex justify-between mb-2">
+                          <span className="text-sm text-gray-500">Wear Count</span>
+                          <span className="font-medium">{showItemDetails.wearCount || 0} times</span>
+                        </div>
+                        <div className="flex justify-between mb-2">
+                          <span className="text-sm text-gray-500">Last Worn</span>
+                          <span className="font-medium">
+                            {showItemDetails.lastWorn 
+                              ? new Date(showItemDetails.lastWorn).toLocaleDateString()
+                              : 'Never'
+                            }
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-500">Status</span>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getCleanlinessColor(showItemDetails.cleanlinessStatus)} text-white`}>
+                            {getCleanlinessText(showItemDetails.cleanlinessStatus)}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex gap-2 pt-4">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMarkAsWorn(showItemDetails._id, e);
+                            setShowItemDetails(null);
+                          }}
+                          className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
+                        >
+                          🧾 Mark as Worn
+                        </button>
+                        <button
+                          onClick={() => setShowItemDetails(null)}
+                          className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                        >
+                          Close
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
