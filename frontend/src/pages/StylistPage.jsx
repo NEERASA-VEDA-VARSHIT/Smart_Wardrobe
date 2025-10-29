@@ -7,6 +7,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import SuggestionInbox from '../components/SuggestionInbox';
 import FriendStylistView from '../components/FriendStylistView';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { API_BASE_URL } from '../api/config';
 
 const StylistPage = () => {
   const user = useSelector(selectUser);
@@ -36,7 +37,7 @@ const StylistPage = () => {
 
       try {
         // Fetch user's collections
-        const collectionsResponse = await fetch(`/api/collections/user/${user._id}`, {
+        const collectionsResponse = await fetch(`${API_BASE_URL}/collections/user/${user._id}`, {
           credentials: 'include'
         });
         if (collectionsResponse.ok) {
