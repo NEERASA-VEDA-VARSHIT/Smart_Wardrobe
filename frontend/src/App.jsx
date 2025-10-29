@@ -23,7 +23,6 @@ import RecommendationEngine from './components/RecommendationEngine';
 import Dashboard from './pages/Dashboard';
 import Collections from './pages/Collections';
 import SharedCollectionView from './components/SharedCollectionView';
-import Outfits from './pages/Outfits';
 
 function App() {
   const user = useSelector(selectUser);
@@ -142,7 +141,6 @@ function App() {
           <Route path="/collections/:collectionId" element={user ? <SharedCollectionView /> : <Navigate to="/" />} />
           <Route path="/collections/shared/:collectionId" element={user ? <SharedCollectionView /> : <Navigate to="/" />} />
           <Route path="/recommendations" element={user ? <RecommendationEngine /> : <Navigate to="/" />} />
-          <Route path="/outfits" element={user ? <Outfits /> : <Navigate to="/" />} />
         </Routes>
         <NotificationSystem />
       </div>
