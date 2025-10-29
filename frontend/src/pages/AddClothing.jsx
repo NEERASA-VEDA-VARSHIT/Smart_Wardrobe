@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { selectUser } from '../redux/userSlice';
 import { clothingAPI } from '../api';
+import { API_BASE_URL } from '../api/config';
 
 const AddClothing = () => {
   const user = useSelector(selectUser);
@@ -511,7 +512,7 @@ const AddClothing = () => {
                           try {
                             const formData = new FormData();
                             formData.append('image', selectedImages[0]);
-                            const res = await fetch('/api/background/upload-and-process', {
+                            const res = await fetch(`${API_BASE_URL}/background/upload-and-process`, {
                               method: 'POST',
                               body: formData,
                               credentials: 'include'

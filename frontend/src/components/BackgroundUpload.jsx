@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { selectUser } from '../redux/userSlice';
 import { clothingAPI } from '../api';
+import { API_BASE_URL } from '../api/config';
 
 const BackgroundUpload = () => {
   const user = useSelector(selectUser);
@@ -25,7 +26,7 @@ const BackgroundUpload = () => {
     if (processingId && processingStatus === 'processing') {
       interval = setInterval(async () => {
         try {
-          const response = await fetch(`/api/background/status/${processingId}`, {
+          const response = await fetch(`${API_BASE_URL}/background/status/${processingId}`, {
             credentials: 'include'
           });
           const data = await response.json();
@@ -83,7 +84,7 @@ const BackgroundUpload = () => {
       const formData = new FormData();
       formData.append('image', selectedFile);
       
-      const response = await fetch('/api/background/upload-and-process', {
+      const response = await fetch(`${API_BASE_URL}/background/upload-and-process`, {
         method: 'POST',
         body: formData,
         credentials: 'include'
