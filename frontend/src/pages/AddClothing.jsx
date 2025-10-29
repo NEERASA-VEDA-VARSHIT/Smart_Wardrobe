@@ -31,6 +31,7 @@ const AddClothing = () => {
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
   const [showToast, setShowToast] = useState(false);
   const metadataSectionRef = useRef(null);
+  const [bgToast, setBgToast] = useState(null);
 
   // Cleanup uploaded images when component unmounts or user navigates away
   useEffect(() => {
@@ -500,6 +501,43 @@ const AddClothing = () => {
                         className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                       >
                         Create Manual Form
+                      </button>
+                    )}
+
+                    {inputMode === 'ai' && uploadMode === 'single' && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            const formData = new FormData();
+                            formData.append('image', selectedImages[0]);
+                            const res = await fetch('/api/background/upload-and-process', {
+                              method: 'POST',
+                              body: formData,
+                              credentials: 'include'
+                            });
+                            const data = await res.json();
+                            if (data?.success && data?.data?.processingId) {
+                              const existing = JSON.parse(localStorage.getItem('bgProcesses') || '[]');
+                              existing.push({ id: data.data.processingId, startedAt: Date.now(), fileName: selectedImages[0]?.name, status: 'processing' });
+                              localStorage.setItem('bgProcesses', JSON.stringify(existing));
+                              setBgToast('Uploading in background — we will add it automatically.');
+                              setTimeout(() => setBgToast(null), 3500);
+                              setSelectedImages([]);
+                              setImagePreviews([]);
+                              if (fileInputRef.current) fileInputRef.current.value = '';
+                            } else {
+                              setBgToast('Failed to start background upload.');
+                              setTimeout(() => setBgToast(null), 3500);
+                            }
+                          } catch (e) {
+                            setBgToast('Network error starting background upload.');
+                            setTimeout(() => setBgToast(null), 3500);
+                          }
+                        }}
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+                      >
+                        Run in Background
                       </button>
                     )}
                   </div>
@@ -1042,6 +1080,14 @@ const AddClothing = () => {
           </div>
         </div>
       )}
+    {bgToast && (
+      <div className="fixed bottom-6 right-6 bg-gray-900/90 border border-gray-700 text-white rounded-lg shadow-lg px-4 py-3 z-50">
+        <div className="flex items-center gap-2">
+          <div className="text-indigo-400">⏳</div>
+          <div className="text-sm">{bgToast}</div>
+        </div>
+      </div>
+    )}
     </div>
   );
 };
