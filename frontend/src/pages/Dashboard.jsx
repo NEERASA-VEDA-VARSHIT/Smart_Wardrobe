@@ -5,6 +5,7 @@ import AnimatedCard from '../components/AnimatedCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useNavigate } from 'react-router-dom';
 import { reduxIntegratedAPI } from '../api/redux-integrated-api';
+import { API_BASE_URL } from '../api/config';
 
 const Dashboard = () => {
   // Redux hooks for clean state management
@@ -24,6 +25,7 @@ const Dashboard = () => {
   
   // Local state for UI-specific data
   const [todaysOutfit, setTodaysOutfit] = useState(null);
+  const [multiOutfits, setMultiOutfits] = useState([]); // 2-5 outfits from RAG
   const hasFetchedDataRef = useRef(false);
 
   // Reset fetch flag when user changes (e.g., logout)
@@ -101,6 +103,24 @@ const Dashboard = () => {
         if (laundryData.status === 'fulfilled') {
           // Laundry data is already set in Redux by the API call
           console.log('Laundry data loaded:', laundryData.value.data);
+        }
+
+        // Generate 2-5 visual outfit sets using new endpoint
+        try {
+          const weatherType = weatherData.status === 'fulfilled' ? weatherData.value.data?.weather?.weatherType : undefined;
+          const temperature = weatherData.status === 'fulfilled' ? weatherData.value.data?.weather?.temperature : undefined;
+          const res = await fetch(`${API_BASE_URL}/recommendations/outfits/${user._id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ occasion: 'casual', timeOfDay: 'day', weather: weatherType, temperature })
+          });
+          if (res.ok) {
+            const json = await res.json();
+            setMultiOutfits(json?.data?.outfits || []);
+          }
+        } catch (e) {
+          console.log('Multi-outfit generation skipped:', e.message);
         }
 
         // Dashboard data loaded successfully (no notification needed)
@@ -408,6 +428,44 @@ const Dashboard = () => {
               </motion.button>
             </div>
           </motion.div>
+
+          {/* Multi Outfit Recommendations */}
+          {multiOutfits && multiOutfits.length > 0 && (
+            <motion.div variants={itemVariants} className="mb-10">
+              <AnimatedCard className="bg-gradient-to-r from-gray-800 to-gray-700 p-8 rounded-xl border border-gray-600">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500">
+                    ✨ Recommended Outfits ({multiOutfits.length})
+                  </h2>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {multiOutfits.map((outfit, idx) => (
+                    <div key={idx} className="bg-black/30 rounded-lg p-4 border border-gray-600">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="text-lg font-semibold">Outfit {idx + 1}</div>
+                      </div>
+                      <div className="flex gap-3">
+                        {(outfit.items || []).slice(0,4).map((it, i) => (
+                          <img
+                            key={`${it.id}-${i}`}
+                            src={it.imageUrl || 'https://via.placeholder.com/96x96/374151/9CA3AF?text=No+Image'}
+                            alt={it.metadata?.subcategory || it.metadata?.category || 'item'}
+                            className="w-24 h-24 object-cover rounded-md border border-gray-700"
+                            onError={(e) => { e.target.src = 'https://via.placeholder.com/96x96/374151/9CA3AF?text=No+Image'; }}
+                          />
+                        ))}
+                      </div>
+                      {outfit.reasoning && (
+                        <div className="text-sm text-gray-300 mt-3">
+                          {outfit.reasoning}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </AnimatedCard>
+            </motion.div>
+          )}
 
           {/* Recent Items */}
           {clothingItems && clothingItems.length > 0 && (
