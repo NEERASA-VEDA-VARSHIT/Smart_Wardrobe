@@ -29,6 +29,8 @@ const AddClothing = () => {
   const [submitError, setSubmitError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
+  const [showToast, setShowToast] = useState(false);
+  const metadataSectionRef = useRef(null);
 
   // Cleanup uploaded images when component unmounts or user navigates away
   useEffect(() => {
@@ -153,6 +155,12 @@ const AddClothing = () => {
         const response = await clothingAPI.generateMetadata(selectedImages[0]);
         if (response.success) {
           setMetadata(response.data);
+          // Auto-scroll to metadata section and show toast
+          setTimeout(() => {
+            metadataSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            setShowToast(true);
+            setTimeout(() => setShowToast(false), 3000);
+          }, 100);
         } else {
           setMetadataError('Failed to generate metadata');
         }
@@ -167,6 +175,12 @@ const AddClothing = () => {
         if (response.success) {
           const allMetadata = response.data.successful.map(item => item.data);
           setMetadata(allMetadata);
+          // Auto-scroll to metadata section and show toast
+          setTimeout(() => {
+            metadataSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            setShowToast(true);
+            setTimeout(() => setShowToast(false), 3000);
+          }, 100);
         } else {
           setMetadataError('Failed to generate metadata for multiple images');
         }
@@ -469,9 +483,15 @@ const AddClothing = () => {
                         type="button"
                         onClick={handleGenerateMetadata}
                         disabled={isGeneratingMetadata}
-                        className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
+                        className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2"
                       >
-                        {isGeneratingMetadata ? 'Generating...' : 'Generate Metadata'}
+                        {isGeneratingMetadata && (
+                          <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                          </svg>
+                        )}
+                        <span>{isGeneratingMetadata ? 'Generating...' : 'Generate Metadata'}</span>
                       </button>
                     ) : (
                       <button
@@ -592,7 +612,7 @@ const AddClothing = () => {
             {/* Metadata Section */}
             {metadata && (
               <div className="space-y-4">
-                <h2 className="text-xl font-semibold text-white">2. Review & Edit Metadata</h2>
+                <h2 ref={metadataSectionRef} className="text-xl font-semibold text-white">2. Review & Edit Metadata</h2>
                 {uploadMode === 'single' ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -1013,6 +1033,15 @@ const AddClothing = () => {
           </form>
         </div>
       </div>
+      {/* Toast */}
+      {showToast && (
+        <div className="fixed bottom-6 right-6 bg-gray-900/90 border border-gray-700 text-white rounded-lg shadow-lg px-4 py-3 z-50">
+          <div className="flex items-center gap-2">
+            <div className="text-green-400">✓</div>
+            <div className="text-sm">Metadata ready — review and save.</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
