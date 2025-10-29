@@ -84,8 +84,7 @@ const Navbar = () => {
     { name: 'Wardrobe', path: '/wardrobe', icon: '👕', description: 'My Clothes' },
     { name: 'Collections', path: '/collections', icon: '📁', description: 'Outfit Collections' },
     { name: 'Stylist', path: '/stylist', icon: '👥', description: 'Collaborate' },
-    { name: 'Outfits', path: '/outfits', icon: '✨', description: 'AI Recommended Outfits' },
-    { name: 'Recommendations', path: '/recommendations', icon: '🧠', description: 'AI Suggestions' },
+    { name: 'Recommendations', path: '/recommendations', icon: '🧠', description: 'AI Outfit Recommendations' },
     { name: 'Laundry', path: '/laundry', icon: '🧺', description: 'Care Schedule' },
   ];
 

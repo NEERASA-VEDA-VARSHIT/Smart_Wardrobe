@@ -374,7 +374,7 @@ const Dashboard = () => {
                 <h2 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500">✨ AI Recommended Outfits</h2>
                 <p className="text-gray-300 mt-1">See up to 4 Gemini-curated outfit cards from your wardrobe.</p>
               </div>
-              <button onClick={() => navigate('/outfits')} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg">View Outfits</button>
+              <button onClick={() => navigate('/recommendations')} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg">View Outfits</button>
             </AnimatedCard>
           </motion.div>
 

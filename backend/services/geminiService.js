@@ -11,7 +11,7 @@ export const geminiModel = genAI.getGenerativeModel({
   model: "gemini-2.5-flash-lite",
   generationConfig: {
     temperature: 0.1, // Lower temperature for more consistent results
-    maxOutputTokens: 200, // Further reduced for faster processing
+    maxOutputTokens: 2048, // Increased to ensure complete JSON responses with multiple outfits
     topP: 0.6, // Further reduce randomness
     topK: 8, // Further limit vocabulary
     candidateCount: 1, // Only generate one response
