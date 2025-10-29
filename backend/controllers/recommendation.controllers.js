@@ -2,7 +2,7 @@ import ClothingItem from "../models/clothingItem.model.js";
 import OutfitRecommendation from "../models/outfitRecommendation.model.js";
 import LaundryItem from "../models/laundryItem.model.js";
 import { findSimilarItemsByText, findComplementaryItems, getOutfitRecommendations } from "../services/vectorSearch.js";
-import { geminiModel, generateOutfitSets } from "../services/geminiService.js";
+import { geminiModel, generateOutfitSets, generateAISuggestions } from "../services/geminiService.js";
 import { cacheService } from "../services/cacheService.js";
 
 /**
@@ -207,6 +207,22 @@ export const recommendOutfitSets = async (req, res) => {
   } catch (error) {
     console.error('recommendOutfitSets error:', error);
     return res.status(500).json({ success: false, message: 'Failed to generate outfit sets', error: error.message });
+  }
+};
+
+/**
+ * AI Suggestions (not limited to wardrobe) with image_prompt + curated_links
+ * POST /api/recommendations/ai-suggestions
+ */
+export const recommendAISuggestions = async (req, res) => {
+  try {
+    const { occasion = 'casual', timeOfDay = 'day', weather = 'moderate', temperature, region = 'IN' } = req.body || {};
+    const ai = await generateAISuggestions({ occasion, timeOfDay, weather, temperature, region });
+    if (!ai.success) return res.status(502).json({ success: false, message: 'AI suggestions failed', error: ai.error });
+    return res.status(200).json({ success: true, data: ai.data });
+  } catch (error) {
+    console.error('recommendAISuggestions error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to generate AI suggestions', error: error.message });
   }
 };
 

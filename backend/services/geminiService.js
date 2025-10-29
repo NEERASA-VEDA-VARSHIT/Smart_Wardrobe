@@ -557,3 +557,102 @@ Return ONLY JSON in this schema:
     return { success: false, error: error.message };
   }
 };
+
+/**
+ * Generate 2–3 AI outfit suggestions (not limited to wardrobe)
+ * Returns image_prompt and curated link suggestions per outfit
+ */
+export const generateAISuggestions = async (context = {}) => {
+  try {
+    const prompt = `You are a fashion stylist. Create between 2 and 3 complete outfit suggestions for the following context.
+
+Context:
+- Weather: ${context.weather || 'moderate'}
+- Temperature: ${context.temperature ?? 'moderate'}
+- Occasion: ${context.occasion || 'casual'}
+- Time of Day: ${context.timeOfDay || 'day'}
+- Style: ${context.style || 'modern minimal'}
+- Region: ${context.region || 'India'}
+
+For each outfit, return STRICT JSON with:
+- title: short name
+- items: array of clothing piece names (top, bottom, shoes, optional outerwear/accessories)
+- reasoning: brief why it fits weather/occasion
+- image_prompt: a realistic flat-lay prompt to generate an image of the outfit
+- curated: array of up to 3 shopping links { label, url }
+
+Only JSON, no extra text. Schema:
+{"outfits":[{"title":"","items":[""],"reasoning":"","image_prompt":"","curated":[{"label":"","url":""}]}]}`;
+
+    const result = await geminiModel.generateContent(prompt);
+    const text = (await result.response).text();
+    let json = text;
+    const match = text.match(/```json\n([\s\S]*?)\n```/);
+    if (match) json = match[1];
+    const data = JSON.parse(json);
+    if (!Array.isArray(data.outfits)) throw new Error('Invalid schema');
+
+    // Best-effort curated links if missing
+    const withLinks = data.outfits.map(o => ({
+      ...o,
+      curated: (o.curated && o.curated.length ? o.curated : [
+        { label: 'Myntra - Similar Styles', url: 'https://www.myntra.com/men-clothing' },
+        { label: 'AJIO - Shop the look', url: 'https://www.ajio.com/men' },
+        { label: 'Amazon Fashion', url: 'https://www.amazon.in/s?k=men+outfit' }
+      ])
+    })).slice(0, 3);
+
+    return { success: true, data: { outfits: withLinks } };
+  } catch (error) {
+    console.error('generateAISuggestions error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Generate AI outfit suggestions (not limited to user's wardrobe)
+ * Returns 2-3 outfits with title, items[], reasoning, image_prompt, curated_links[{title,url}]
+ */
+export const generateAISuggestions = async (context = {}) => {
+  try {
+    const prompt = `You are an AI stylist.
+Create between 2 and 3 outfit suggestions suitable for:
+Weather: ${context.weather || 'moderate'}
+Temperature: ${context.temperature ?? 'moderate'}
+Occasion: ${context.occasion || 'casual'}
+Time of day: ${context.timeOfDay || 'day'}
+Region: ${context.region || 'IN'}
+
+Each outfit must include:
+- title (short name)
+- items: array of 3-6 human-readable clothing items (e.g., "dark wash jeans", "cream turtleneck sweater")
+- reasoning: 1-2 sentences
+- image_prompt: a concise prompt to render a realistic flat-lay or mannequin outfit image
+- curated_links: array of 2-5 shopping links objects with {title, url} (use popular retailers or placeholders with https URLs)
+
+Return ONLY JSON in this schema:
+{
+  "outfits": [
+    {
+      "title": "string",
+      "items": ["string", "string"],
+      "reasoning": "string",
+      "image_prompt": "string",
+      "curated_links": [{"title":"string","url":"https://..."}]
+    }
+  ]
+}`;
+
+    const result = await geminiModel.generateContent(prompt);
+    const text = (await result.response).text();
+    let json = text;
+    const match = text.match(/```json\n([\s\S]*?)\n```/);
+    if (match) json = match[1];
+    const data = JSON.parse(json);
+    if (!Array.isArray(data.outfits)) throw new Error('Invalid AI suggestions schema');
+    return { success: true, data };
+  } catch (error) {
+    console.error('generateAISuggestions error:', error);
+    return { success: false, error: error.message };
+  }
+};
