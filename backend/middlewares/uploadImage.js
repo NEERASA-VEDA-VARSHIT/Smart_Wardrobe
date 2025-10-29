@@ -41,24 +41,21 @@ export const processMultipleImageUploads = async (req, res, next) => {
       try {
         console.log(`Uploading image ${index + 1}/${req.files.length}: ${file.originalname}`);
         
-        // Compress image before upload
+        // Compress image before upload (same quality profile as single upload)
         const compressionSettings = getCompressionSettings(file.size);
         const compressedBuffer = await compressImage(file.buffer, compressionSettings);
-        
-        // Upload to Cloudinary - let Cloudinary handle its own timeouts
+
+        // Direct upload with base64 (no aggressive transformations)
         const result = await new Promise((resolve, reject) => {
-          cloudinary.uploader.upload_stream(
+          const base64String = compressedBuffer.toString('base64');
+          const dataUri = `data:${file.mimetype};base64,${base64String}`;
+          cloudinary.uploader.upload(
+            dataUri,
             {
               folder: 'smart-wardrobe',
               public_id: `clothing-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`,
-              transformation: [
-                { width: 800, height: 800, crop: 'limit', quality: 'auto' },
-                { fetch_format: 'auto' }
-              ],
-              resource_type: 'auto',
-              eager_async: true,
-              timeout: 120000, // 2 minutes - let Cloudinary decide
-              chunk_size: 6000000 // 6MB chunks
+              resource_type: 'image',
+              timeout: 60000
             },
             (error, result) => {
               if (error) {
@@ -68,7 +65,7 @@ export const processMultipleImageUploads = async (req, res, next) => {
                 resolve(result);
               }
             }
-          ).end(compressedBuffer);
+          );
         });
 
         // Add Cloudinary data to file object
