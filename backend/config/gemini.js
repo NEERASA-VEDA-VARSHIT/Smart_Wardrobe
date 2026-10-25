@@ -7,8 +7,12 @@ dotenv.config();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // Export models for easy access
-export const geminiModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
-export const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
+export const geminiModel = genAI.getGenerativeModel({ 
+  model: process.env.GEMINI_MODEL || "gemini-2.0-flash" 
+});
+export const embeddingModel = genAI.getGenerativeModel({ 
+  model: process.env.GEMINI_EMBEDDING_MODEL || "text-embedding-004" 
+});
 
 // Test connection
 export const testGeminiConnection = async () => {
