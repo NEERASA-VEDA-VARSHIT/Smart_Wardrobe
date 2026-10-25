@@ -8,7 +8,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // Export models for easy access - using fast flash model for speed
 export const geminiModel = genAI.getGenerativeModel({ 
-  model: process.env.GEMINI_MODEL || "gemini-2.0-flash",
+  model: process.env.GEMINI_MODEL || "gemini-3.8-flash",
   generationConfig: {
     temperature: 0.1, // Lower temperature for more consistent results
     maxOutputTokens: 2048, // Increased to ensure complete JSON responses with multiple outfits
@@ -142,7 +142,7 @@ export const generateClothingMetadata = async (imageBuffer, mimeType) => {
 
       // Use optimized model for better accuracy
       const model = genAI.getGenerativeModel({ 
-        model: process.env.GEMINI_MODEL || "gemini-2.0-flash",
+        model: process.env.GEMINI_MODEL || "gemini-3.8-flash",
         generationConfig: {
           temperature: 0.1, // Lower temperature for more consistent results
           maxOutputTokens: 500, // More tokens for detailed analysis
@@ -609,7 +609,7 @@ export const generateOutfitRecommendation = async (prompt) => {
     return {
       success: true,
       recommendation: text,
-      model: process.env.GEMINI_MODEL || 'gemini-2.0-flash'
+      model: process.env.GEMINI_MODEL || 'gemini-3.8-flash'
     };
   } catch (error) {
     console.error('Error generating outfit recommendation:', error);
