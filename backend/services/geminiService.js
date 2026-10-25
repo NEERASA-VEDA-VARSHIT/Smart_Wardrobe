@@ -6,9 +6,9 @@ dotenv.config();
 // Initialize Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// Export models for easy access - using fast flash model for speed
+// Export models for easy access - using fast flash-lite model for speed
 export const geminiModel = genAI.getGenerativeModel({ 
-  model: process.env.GEMINI_MODEL || "gemini-3.8-flash",
+  model: process.env.GEMINI_MODEL || "gemini-3.5-flash-lite",
   generationConfig: {
     temperature: 0.1, // Lower temperature for more consistent results
     maxOutputTokens: 2048, // Increased to ensure complete JSON responses with multiple outfits
@@ -36,7 +36,7 @@ export const geminiModel = genAI.getGenerativeModel({
   ]
 });
 export const embeddingModel = genAI.getGenerativeModel({ 
-  model: process.env.GEMINI_EMBEDDING_MODEL || "text-embedding-004" 
+  model: process.env.GEMINI_EMBEDDING_MODEL || "gemini-embedding-001" 
 });
 
 // Robust JSON extractor for Gemini responses (handles code fences, stray text, CRLF)
@@ -142,7 +142,7 @@ export const generateClothingMetadata = async (imageBuffer, mimeType) => {
 
       // Use optimized model for better accuracy
       const model = genAI.getGenerativeModel({ 
-        model: process.env.GEMINI_MODEL || "gemini-3.8-flash",
+        model: process.env.GEMINI_MODEL || "gemini-3.5-flash-lite",
         generationConfig: {
           temperature: 0.1, // Lower temperature for more consistent results
           maxOutputTokens: 500, // More tokens for detailed analysis
@@ -466,7 +466,7 @@ export const generateTextEmbedding = async (text) => {
     const cleanText = text.trim().substring(0, 8000); // Limit to 8000 chars
     
     let result;
-    let usedModel = process.env.GEMINI_EMBEDDING_MODEL || 'text-embedding-004';
+    let usedModel = process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding-001';
 
     try {
       result = await embeddingModel.embedContent(cleanText);
@@ -479,16 +479,16 @@ export const generateTextEmbedding = async (text) => {
         ));
 
       if (isNotFoundOrUnsupported) {
-        console.warn(`[Gemini] Primary embedding model (${usedModel}) 404/unsupported, falling back to 'embedding-001'...`);
+        console.warn(`[Gemini] Primary embedding model (${usedModel}) 404/unsupported, falling back to 'gemini-embedding-2'...`);
         try {
-          const fallbackModel = genAI.getGenerativeModel({ model: "embedding-001" });
+          const fallbackModel = genAI.getGenerativeModel({ model: "gemini-embedding-2" });
           result = await fallbackModel.embedContent(cleanText);
-          usedModel = 'embedding-001';
+          usedModel = 'gemini-embedding-2';
         } catch (fallbackErr) {
-          console.warn(`[Gemini] Fallback to 'embedding-001' failed, attempting 'gemini-embedding-001'...`);
-          const secondaryFallback = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
+          console.warn(`[Gemini] Fallback to 'gemini-embedding-2' failed, attempting 'embedding-001'...`);
+          const secondaryFallback = genAI.getGenerativeModel({ model: "embedding-001" });
           result = await secondaryFallback.embedContent(cleanText);
-          usedModel = 'gemini-embedding-001';
+          usedModel = 'embedding-001';
         }
       } else {
         throw primaryErr;
@@ -609,7 +609,7 @@ export const generateOutfitRecommendation = async (prompt) => {
     return {
       success: true,
       recommendation: text,
-      model: process.env.GEMINI_MODEL || 'gemini-3.8-flash'
+      model: process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite'
     };
   } catch (error) {
     console.error('Error generating outfit recommendation:', error);
